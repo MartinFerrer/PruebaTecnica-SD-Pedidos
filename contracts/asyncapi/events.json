@@ -1,0 +1,848 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "Order and Inventory Events",
+    "version": "1.0.0"
+  },
+  "defaultContentType": "application/json",
+  "servers": {
+    "local": {
+      "host": "localhost:5672",
+      "protocol": "amqp"
+    }
+  },
+  "channels": {
+    "events": {
+      "address": "business.events",
+      "messages": {
+        "OrderCreated": {
+          "$ref": "#/components/messages/OrderCreated"
+        },
+        "OrderCancelled": {
+          "$ref": "#/components/messages/OrderCancelled"
+        },
+        "StockReserved": {
+          "$ref": "#/components/messages/StockReserved"
+        },
+        "StockRejected": {
+          "$ref": "#/components/messages/StockRejected"
+        },
+        "StockReleased": {
+          "$ref": "#/components/messages/StockReleased"
+        },
+        "ProductStockCreated": {
+          "$ref": "#/components/messages/ProductStockCreated"
+        },
+        "ProductStockReplenished": {
+          "$ref": "#/components/messages/ProductStockReplenished"
+        },
+        "ProductStockUpdated": {
+          "$ref": "#/components/messages/ProductStockUpdated"
+        }
+      }
+    }
+  },
+  "operations": {
+    "publish": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/events"
+      }
+    }
+  },
+  "components": {
+    "messages": {
+      "OrderCreated": {
+        "name": "OrderCreated",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "eventType": {
+              "const": "OrderCreated"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "causationId": {
+              "type": "string"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "producer": {
+              "enum": [
+                "order-service"
+              ]
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "orderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "items": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "productId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000000000
+                      }
+                    },
+                    "required": [
+                      "productId",
+                      "quantity"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "orderId",
+                "items"
+              ]
+            }
+          },
+          "required": [
+            "eventId",
+            "eventType",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "correlationId",
+            "causationId",
+            "traceparent",
+            "producer",
+            "payload"
+          ]
+        }
+      },
+      "OrderCancelled": {
+        "name": "OrderCancelled",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "eventType": {
+              "const": "OrderCancelled"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "causationId": {
+              "type": "string"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "producer": {
+              "enum": [
+                "order-service"
+              ]
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "orderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "orderId"
+              ]
+            }
+          },
+          "required": [
+            "eventId",
+            "eventType",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "correlationId",
+            "causationId",
+            "traceparent",
+            "producer",
+            "payload"
+          ]
+        }
+      },
+      "StockReserved": {
+        "name": "StockReserved",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "eventType": {
+              "const": "StockReserved"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "causationId": {
+              "type": "string"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "producer": {
+              "enum": [
+                "inventory-service"
+              ]
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "orderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requestOrderVersion": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "productId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000000000
+                      }
+                    },
+                    "required": [
+                      "productId",
+                      "quantity"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "orderId",
+                "requestOrderVersion",
+                "items"
+              ]
+            }
+          },
+          "required": [
+            "eventId",
+            "eventType",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "correlationId",
+            "causationId",
+            "traceparent",
+            "producer",
+            "payload"
+          ]
+        }
+      },
+      "StockRejected": {
+        "name": "StockRejected",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "eventType": {
+              "const": "StockRejected"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "causationId": {
+              "type": "string"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "producer": {
+              "enum": [
+                "inventory-service"
+              ]
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "orderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requestOrderVersion": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "unavailableItems": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "productId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requested": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000000000
+                      },
+                      "available": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000000000
+                      },
+                      "reason": {
+                        "enum": [
+                          "INSUFFICIENT_STOCK",
+                          "PRODUCT_NOT_FOUND"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "productId",
+                      "requested",
+                      "available",
+                      "reason"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "orderId",
+                "requestOrderVersion",
+                "unavailableItems"
+              ]
+            }
+          },
+          "required": [
+            "eventId",
+            "eventType",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "correlationId",
+            "causationId",
+            "traceparent",
+            "producer",
+            "payload"
+          ]
+        }
+      },
+      "StockReleased": {
+        "name": "StockReleased",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "eventType": {
+              "const": "StockReleased"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "causationId": {
+              "type": "string"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "producer": {
+              "enum": [
+                "inventory-service"
+              ]
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "orderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requestOrderVersion": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "outcome": {
+                  "enum": [
+                    "RELEASED",
+                    "NOT_RESERVED",
+                    "CANCELLED_BEFORE_RESERVATION"
+                  ]
+                },
+                "releasedItems": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "productId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000000000
+                      }
+                    },
+                    "required": [
+                      "productId",
+                      "quantity"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "orderId",
+                "requestOrderVersion",
+                "outcome",
+                "releasedItems"
+              ]
+            }
+          },
+          "required": [
+            "eventId",
+            "eventType",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "correlationId",
+            "causationId",
+            "traceparent",
+            "producer",
+            "payload"
+          ]
+        }
+      },
+      "ProductStockCreated": {
+        "name": "ProductStockCreated",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "eventType": {
+              "const": "ProductStockCreated"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "causationId": {
+              "type": "string"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "producer": {
+              "enum": [
+                "inventory-service"
+              ]
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "productId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "onHand": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "reserved": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "available": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "productId",
+                "onHand",
+                "reserved",
+                "available",
+                "version"
+              ]
+            }
+          },
+          "required": [
+            "eventId",
+            "eventType",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "correlationId",
+            "causationId",
+            "traceparent",
+            "producer",
+            "payload"
+          ]
+        }
+      },
+      "ProductStockReplenished": {
+        "name": "ProductStockReplenished",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "eventType": {
+              "const": "ProductStockReplenished"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "causationId": {
+              "type": "string"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "producer": {
+              "enum": [
+                "inventory-service"
+              ]
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "productId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "onHand": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "reserved": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "available": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "productId",
+                "onHand",
+                "reserved",
+                "available",
+                "version"
+              ]
+            }
+          },
+          "required": [
+            "eventId",
+            "eventType",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "correlationId",
+            "causationId",
+            "traceparent",
+            "producer",
+            "payload"
+          ]
+        }
+      },
+      "ProductStockUpdated": {
+        "name": "ProductStockUpdated",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "eventType": {
+              "const": "ProductStockUpdated"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "causationId": {
+              "type": "string"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "producer": {
+              "enum": [
+                "inventory-service"
+              ]
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "productId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "onHand": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "reserved": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "available": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "productId",
+                "onHand",
+                "reserved",
+                "available",
+                "version"
+              ]
+            }
+          },
+          "required": [
+            "eventId",
+            "eventType",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "correlationId",
+            "causationId",
+            "traceparent",
+            "producer",
+            "payload"
+          ]
+        }
+      }
+    }
+  }
+}

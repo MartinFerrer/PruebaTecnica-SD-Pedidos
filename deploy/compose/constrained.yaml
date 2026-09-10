@@ -1,0 +1,18 @@
+services:
+  order-service:
+    cpus: 0.5
+    mem_limit: 512m
+    pids_limit: 160
+  inventory-service:
+    cpus: 0.5
+    mem_limit: 384m
+    pids_limit: 160
+  order-db:
+    cpus: 0.5
+    mem_limit: 256m
+  inventory-db:
+    cpus: 0.5
+    mem_limit: 256m
+  rabbitmq:
+    cpus: 0.5
+    mem_limit: 512m

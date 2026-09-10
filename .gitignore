@@ -1,0 +1,22 @@
+# Artefactos temporales de revisión
+tmp/
+
+# Build Java/Maven
+**/target/
+
+# IDE y sistema operativo
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Configuración local y secretos
+.env
+.env.*
+!.env.example
+*.local
+
+# Resultados de pruebas futuros
+reports/
+test-results/

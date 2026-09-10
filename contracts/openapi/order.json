@@ -1,0 +1,618 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Order API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8081"
+    }
+  ],
+  "paths": {
+    "/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "responses": {
+          "200": {
+            "description": "Pedidos ordenados por identificador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createOrder",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "productId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000000
+                        }
+                      },
+                      "required": [
+                        "productId",
+                        "quantity"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "items"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Resultado persistido; replay histórico.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "orderId",
+                    "status",
+                    "items"
+                  ],
+                  "properties": {
+                    "orderId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "enum": [
+                        "PENDING",
+                        "CONFIRMED",
+                        "REJECTED",
+                        "CANCELLED"
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "quantity"
+                        ]
+                      }
+                    },
+                    "unavailableItems": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "requested": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          },
+                          "available": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000000
+                          },
+                          "reason": {
+                            "enum": [
+                              "INSUFFICIENT_STOCK",
+                              "PRODUCT_NOT_FOUND"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "requested",
+                          "available",
+                          "reason"
+                        ]
+                      }
+                    },
+                    "inventoryCancellationStatus": {
+                      "enum": [
+                        "PENDING",
+                        "COMPLETED"
+                      ]
+                    },
+                    "statusUrl": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem Details: 400 inválido, 404 inexistente, 409 conflicto, 503 transitorio con Retry-After.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{orderId}": {
+      "get": {
+        "operationId": "getOrder",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado persistido; replay histórico.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "orderId",
+                    "status",
+                    "items"
+                  ],
+                  "properties": {
+                    "orderId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "enum": [
+                        "PENDING",
+                        "CONFIRMED",
+                        "REJECTED",
+                        "CANCELLED"
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "quantity"
+                        ]
+                      }
+                    },
+                    "unavailableItems": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "requested": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          },
+                          "available": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000000
+                          },
+                          "reason": {
+                            "enum": [
+                              "INSUFFICIENT_STOCK",
+                              "PRODUCT_NOT_FOUND"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "requested",
+                          "available",
+                          "reason"
+                        ]
+                      }
+                    },
+                    "inventoryCancellationStatus": {
+                      "enum": [
+                        "PENDING",
+                        "COMPLETED"
+                      ]
+                    },
+                    "statusUrl": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem Details: 400 inválido, 404 inexistente, 409 conflicto, 503 transitorio con Retry-After.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{orderId}/cancel": {
+      "post": {
+        "operationId": "cancelOrder",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ya cancelado: estado actual.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "orderId",
+                    "status",
+                    "items"
+                  ],
+                  "properties": {
+                    "orderId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "enum": [
+                        "PENDING",
+                        "CONFIRMED",
+                        "REJECTED",
+                        "CANCELLED"
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "quantity"
+                        ]
+                      }
+                    },
+                    "unavailableItems": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "requested": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          },
+                          "available": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000000
+                          },
+                          "reason": {
+                            "enum": [
+                              "INSUFFICIENT_STOCK",
+                              "PRODUCT_NOT_FOUND"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "requested",
+                          "available",
+                          "reason"
+                        ]
+                      }
+                    },
+                    "inventoryCancellationStatus": {
+                      "enum": [
+                        "PENDING",
+                        "COMPLETED"
+                      ]
+                    },
+                    "statusUrl": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Resultado persistido; replay histórico.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "orderId",
+                    "status",
+                    "inventoryCancellationStatus"
+                  ],
+                  "properties": {
+                    "orderId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "enum": [
+                        "PENDING",
+                        "CONFIRMED",
+                        "REJECTED",
+                        "CANCELLED"
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "quantity"
+                        ]
+                      }
+                    },
+                    "unavailableItems": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "requested": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          },
+                          "available": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000000
+                          },
+                          "reason": {
+                            "enum": [
+                              "INSUFFICIENT_STOCK",
+                              "PRODUCT_NOT_FOUND"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "requested",
+                          "available",
+                          "reason"
+                        ]
+                      }
+                    },
+                    "inventoryCancellationStatus": {
+                      "enum": [
+                        "PENDING",
+                        "COMPLETED"
+                      ]
+                    },
+                    "statusUrl": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem Details: 400 inválido, 404 inexistente, 409 conflicto, 503 transitorio con Retry-After.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "OrderView": {
+        "type": "object",
+        "required": ["orderId", "status", "items"],
+        "properties": {
+          "orderId": { "type": "string", "format": "uuid" },
+          "status": { "enum": ["PENDING", "CONFIRMED", "REJECTED", "CANCELLED"] },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["productId", "quantity"],
+              "properties": {
+                "productId": { "type": "string", "format": "uuid" },
+                "quantity": { "type": "integer", "minimum": 1, "maximum": 1000000000 }
+              }
+            }
+          },
+          "unavailableItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["productId", "requested", "available", "reason"],
+              "properties": {
+                "productId": { "type": "string", "format": "uuid" },
+                "requested": { "type": "integer", "minimum": 1 },
+                "available": { "type": "integer", "minimum": 0 },
+                "reason": { "type": "string" }
+              }
+            }
+          },
+          "inventoryCancellationStatus": { "enum": ["PENDING", "COMPLETED"] },
+          "statusUrl": { "type": "string" }
+        }
+      }
+    }
+  }
+}

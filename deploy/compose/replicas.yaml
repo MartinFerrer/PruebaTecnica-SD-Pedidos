@@ -1,0 +1,7 @@
+services:
+  rabbitmq:
+    ports: !override []
+  order-service:
+    ports: !override ["127.0.0.1::8080"]
+  inventory-service:
+    ports: !override ["127.0.0.1::8080"]

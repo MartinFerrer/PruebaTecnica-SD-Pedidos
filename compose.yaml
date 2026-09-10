@@ -1,0 +1,96 @@
+name: roshka-local
+services:
+  order-db:
+    image: postgres:18.3-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: ${ORDER_DB_PASSWORD:?Set ORDER_DB_PASSWORD in .env}
+    volumes: [order-data:/var/lib/postgresql]
+    networks: [order-data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orders -d orders"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  inventory-db:
+    image: postgres:18.3-alpine
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: ${INVENTORY_DB_PASSWORD:?Set INVENTORY_DB_PASSWORD in .env}
+    volumes: [inventory-data:/var/lib/postgresql]
+    networks: [inventory-data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  rabbitmq:
+    image: rabbitmq:4.2.3-management-alpine
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: app
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+    volumes: [rabbit-data:/var/lib/rabbitmq]
+    networks: [messaging]
+    ports: ["127.0.0.1:15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  order-service:
+    image: roshka/order-service:local
+    build:
+      context: .
+      args: {SERVICE: order}
+    environment:
+      DATABASE_URL: jdbc:postgresql://order-db:5432/orders
+      DATABASE_USER: orders
+      DATABASE_PASSWORD: ${ORDER_DB_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: app
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    ports: ["127.0.0.1:${ORDER_PORT:-8081}:8080"]
+    networks: [order-data, messaging]
+    depends_on:
+      order-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  inventory-service:
+    image: roshka/inventory-service:local
+    build:
+      context: .
+      args: {SERVICE: inventory}
+    environment:
+      DATABASE_URL: jdbc:postgresql://inventory-db:5432/inventory
+      DATABASE_USER: inventory
+      DATABASE_PASSWORD: ${INVENTORY_DB_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: app
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    ports: ["127.0.0.1:${INVENTORY_PORT:-8082}:8080"]
+    networks: [inventory-data, messaging]
+    depends_on:
+      inventory-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+networks:
+  order-data: {internal: true}
+  inventory-data: {internal: true}
+  messaging: {}
+volumes:
+  order-data: {}
+  inventory-data: {}
+  rabbit-data: {}
