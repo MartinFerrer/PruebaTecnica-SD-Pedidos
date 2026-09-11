@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -28,7 +29,18 @@ public class CorrelationFilter extends OncePerRequestFilter {
 		response.setHeader("X-Correlation-Id", correlation);
 		response.setHeader("X-Service-Instance", instanceId());
 		try (var scope = new MessageContext(correlation, UUID.randomUUID().toString(), trace).open()) {
-			chain.doFilter(request, response);
+			MDC.put("service", serviceName());
+			String orderId = orderId(request.getRequestURI());
+			if (orderId != null) {
+				MDC.put("order_id", orderId);
+			}
+			try {
+				chain.doFilter(request, response);
+			}
+			finally {
+				MDC.remove("service");
+				MDC.remove("order_id");
+			}
 		}
 	}
 
@@ -38,6 +50,16 @@ public class CorrelationFilter extends OncePerRequestFilter {
 			instance = System.getenv("HOSTNAME");
 		}
 		return instance == null || instance.isBlank() ? "local" : instance;
+	}
+
+	private String serviceName() {
+		String service = System.getenv("OTEL_SERVICE_NAME");
+		return service == null || service.isBlank() ? "application" : service;
+	}
+
+	private String orderId(String path) {
+		var matcher = java.util.regex.Pattern.compile("/orders/([0-9a-fA-F-]{36})(?:/|$)").matcher(path);
+		return matcher.find() ? matcher.group(1) : null;
 	}
 
 }

@@ -1,11 +1,13 @@
 package com.roshka.platform.messaging;
 
+import com.roshka.platform.observability.PlatformMetrics;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,12 +26,21 @@ public class OutboxRelay {
 
 	private final TransactionTemplate tx;
 
+	private final PlatformMetrics metrics;
+
 	private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(getClass());
 
 	public OutboxRelay(JdbcClient db, ConfirmedPublisher publisher, PlatformTransactionManager manager) {
+		this(db, publisher, manager, PlatformMetrics.noop());
+	}
+
+	@Autowired
+	public OutboxRelay(JdbcClient db, ConfirmedPublisher publisher, PlatformTransactionManager manager,
+			PlatformMetrics metrics) {
 		this.db = db;
 		this.publisher = publisher;
 		tx = new TransactionTemplate(manager);
+		this.metrics = metrics;
 	}
 
 	@Scheduled(fixedDelay = 250, initialDelay = 1000)
@@ -50,6 +61,7 @@ public class OutboxRelay {
 			for (var item : pending) {
 				dispatch(item, token);
 			}
+			metrics.outboxPending(pending.size());
 		}
 		catch (RuntimeException e) {
 			log.warn("Outbox unavailable: {}", e.toString());
@@ -81,8 +93,10 @@ public class OutboxRelay {
 			if (updated != 1) {
 				log.warn("Outbox lease lost after publish event={}", item.id());
 			}
+			metrics.increment("outbox_published_total", "event_type", item.type());
 		}
 		catch (RuntimeException e) {
+			metrics.increment("outbox_failures_total", "event_type", item.type());
 			int delay = Math.min(60, 1 << Math.min(item.attempts(), 6)) + ThreadLocalRandom.current().nextInt(3);
 			db.sql("UPDATE message_outbox SET attempts=attempts+1,lease_until=NULL,"
 					+ "next_attempt=now()+(:delay * interval '1 second') "

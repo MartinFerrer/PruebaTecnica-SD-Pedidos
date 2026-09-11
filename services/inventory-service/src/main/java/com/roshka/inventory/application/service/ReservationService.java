@@ -9,6 +9,7 @@ import com.roshka.inventory.application.port.out.ReservationStore;
 import com.roshka.inventory.domain.Product;
 import com.roshka.inventory.domain.Reservation;
 import com.roshka.inventory.domain.Stock;
+import com.roshka.platform.observability.PlatformMetrics;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,13 +32,21 @@ public class ReservationService implements ReserveStockUseCase, CancelReservatio
 
 	private final Supplier<UUID> ids;
 
+	private final PlatformMetrics metrics;
+
 	public ReservationService(ReservationStore reservations, InventoryStore products, EventPublisherPort events,
 			Clock clock, Supplier<UUID> ids) {
+		this(reservations, products, events, clock, ids, PlatformMetrics.noop());
+	}
+
+	public ReservationService(ReservationStore reservations, InventoryStore products, EventPublisherPort events,
+			Clock clock, Supplier<UUID> ids, PlatformMetrics metrics) {
 		this.reservations = reservations;
 		this.products = products;
 		this.events = events;
 		this.clock = clock;
 		this.ids = ids;
+		this.metrics = metrics;
 	}
 
 	@Override
@@ -45,6 +54,7 @@ public class ReservationService implements ReserveStockUseCase, CancelReservatio
 		validateReservationRequest(version, items);
 		reservations.lock(orderId);
 		if (reservations.find(orderId).isPresent()) {
+			metrics.increment("inventory_reservation_replays_total");
 			return;
 		}
 
@@ -61,6 +71,8 @@ public class ReservationService implements ReserveStockUseCase, CancelReservatio
 		}
 
 		if (!shortages.isEmpty()) {
+			metrics.increment("inventory_reservations_total", "outcome", "rejected");
+			metrics.increment("unavailable_items_total", "reason", "insufficient_or_missing");
 			reservations.save(new Reservation(orderId, "REJECTED", version, 1, items));
 			events.publish("StockRejected", orderId, 1,
 					Map.of("orderId", orderId, "requestOrderVersion", version, "unavailableItems", shortages));
@@ -71,6 +83,7 @@ public class ReservationService implements ReserveStockUseCase, CancelReservatio
 			change(locked.get(item.productId()), item.quantity(), true, orderId);
 		}
 		reservations.save(new Reservation(orderId, "RESERVED", version, 1, items));
+		metrics.increment("inventory_reservations_total", "outcome", "reserved");
 		events.publish("StockReserved", orderId, 1,
 				Map.of("orderId", orderId, "requestOrderVersion", version, "items", items));
 	}
@@ -84,6 +97,7 @@ public class ReservationService implements ReserveStockUseCase, CancelReservatio
 		var existing = reservations.find(orderId);
 		if (existing.isPresent() && (existing.get().lastOrderVersion() >= version
 				|| Set.of("RELEASED", "CANCELLED_BEFORE_RESERVATION").contains(existing.get().state()))) {
+			metrics.increment("inventory_release_replays_total");
 			return;
 		}
 
@@ -107,8 +121,9 @@ public class ReservationService implements ReserveStockUseCase, CancelReservatio
 
 		reservations.save(new Reservation(orderId, existing.isEmpty() ? "CANCELLED_BEFORE_RESERVATION" : "RELEASED",
 				version, nextVersion, existing.map(Reservation::items).orElse(List.of())));
-		events.publish("StockReleased", orderId, nextVersion, Map.of("orderId", orderId, "requestOrderVersion", version,
+		 events.publish("StockReleased", orderId, nextVersion, Map.of("orderId", orderId, "requestOrderVersion", version,
 				"outcome", outcome, "releasedItems", released));
+		metrics.increment("inventory_releases_total", "outcome", outcome.toLowerCase());
 	}
 
 	private void change(Product before, long quantity, boolean reserve, UUID orderId) {

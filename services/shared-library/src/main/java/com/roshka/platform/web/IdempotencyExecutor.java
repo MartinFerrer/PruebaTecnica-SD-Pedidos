@@ -2,6 +2,7 @@ package com.roshka.platform.web;
 
 import com.roshka.platform.json.JsonCodec;
 import com.roshka.platform.messaging.MessageContext;
+import com.roshka.platform.observability.PlatformMetrics;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
@@ -39,10 +40,18 @@ public final class IdempotencyExecutor {
 
 	private final TransactionTemplate tx;
 
+	private final PlatformMetrics metrics;
+
 	public IdempotencyExecutor(JdbcClient db, JsonCodec json, PlatformTransactionManager manager) {
+		this(db, json, manager, PlatformMetrics.noop());
+	}
+
+	public IdempotencyExecutor(JdbcClient db, JsonCodec json, PlatformTransactionManager manager,
+			PlatformMetrics metrics) {
 		this.db = db;
 		this.json = json;
 		this.tx = new TransactionTemplate(manager);
+		this.metrics = metrics;
 		this.tx.setTimeout(15);
 	}
 
@@ -82,6 +91,7 @@ public final class IdempotencyExecutor {
 			db.sql("SET LOCAL lock_timeout = '3s'").update();
 			int claimed = claim(operation, key, fingerprint);
 			if (claimed == 0) {
+				metrics.increment("idempotency_replays_total", "operation", operation);
 				return existing(operation, key, fingerprint);
 			}
 

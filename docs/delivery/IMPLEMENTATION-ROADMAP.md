@@ -29,8 +29,8 @@ roadmap se usan estos estados:
 | Idempotencia HTTP | Implementado para M2 | Headers históricos, concurrencia, conflictos, errores definitivos, timeout de lock, migración V2->V3 y retry acotado de deadlock/serialización. |
 | Contratos | Implementado para M1 | OpenAPI/AsyncAPI contra metaschemas versionados, schemas de eventos, validación observada request/response y colección Bruno repetible. |
 | Pruebas | Implementado para M1-M4/M6 smoke | Maven, Testcontainers, Bruno en Compose, integración de mensajería, idempotencia, límites, constraints, carreras deterministas, k6 multirréplica y presión corta. Property/fuzz siguen pendientes. |
-| Compose | Implementado para M4/M6 smoke | Base, `demo-data`, réplicas, cuotas y Toxiproxy están versionados; observabilidad sigue pendiente. |
-| Observabilidad | Pendiente | Hay Actuator health, logs ECS y contexto en el envelope; no hay Collector, Prometheus, Tempo, Loki, Grafana, spans exportados, métricas de negocio, dashboards o alertas. |
+| Compose | Implementado para M4/M6/M7 | Base, `demo-data`, réplicas, cuotas, Toxiproxy y observabilidad están versionados. |
+| Observabilidad | Implementado | Perfil opcional con Java agent, Collector, Prometheus, Tempo, Loki, Grafana, métricas acotadas, dashboards y alertas. |
 | CI | Parcial | Un workflow ejecuta Maven, Compose y `demo-data`; no se pudo confirmar una ejecución remota autenticada y aún no contiene todas las puertas diseñadas. |
 | CD y seguridad de artefactos | Pendiente | No hay publicación GHCR, SBOM, escaneo de imágenes, attestations, release workflow ni actualización automática de dependencias. |
 
@@ -299,19 +299,19 @@ retirar el fallo, el sistema converge conservando sus invariantes.
 
 ### Features/TODO
 
-- [ ] Implementar el perfil Compose `observability` con OpenTelemetry Collector, Prometheus, Tempo,
+- [x] Implementar el perfil Compose `observability` con OpenTelemetry Collector, Prometheus, Tempo,
   Loki y Grafana, configuraciones versionadas, healthchecks, retención corta y límites locales.
-- [ ] Incorporar el OpenTelemetry Java agent en las imágenes/configuración del perfil, sin duplicar
+- [x] Incorporar el OpenTelemetry Java agent en las imágenes/configuración del perfil, sin duplicar
   instrumentación con el starter; desactivar métricas del agente y exponer Micrometer/Prometheus.
-- [ ] Completar propagación W3C HTTP -> outbox -> headers AMQP -> consumidor y crear un span hijo al
+- [x] Completar propagación W3C HTTP -> outbox -> headers AMQP -> consumidor y crear un span hijo al
   consumir; conservar continuidad después de retries y replay.
-- [ ] Completar logs correlacionados con `service`, `trace_id`, `span_id`, `correlation_id`,
+- [x] Completar logs correlacionados con `service`, `trace_id`, `span_id`, `correlation_id`,
   `causation_id`, `event_id` y `order_id` cuando estén disponibles, sin registrar claves sensibles.
-- [ ] Implementar las métricas de negocio/transporte enumeradas en `OBSERVABILITY.md` con labels de
+- [x] Implementar las métricas de negocio/transporte enumeradas en `OBSERVABILITY.md` con labels de
   cardinalidad acotada.
-- [ ] Versionar cuatro dashboards y alertas para DLQ, outbox antigua, retries/backlog, consumers,
+- [x] Versionar cuatro dashboards y alertas para DLQ, outbox antigua, retries/backlog, consumers,
   confirms, errores, latencia terminal, Hikari y readiness.
-- [ ] Mantener health público; limitar métricas y UIs del perfil a redes/puertos de desarrollo
+- [x] Mantener health público; limitar métricas y UIs del perfil a redes/puertos de desarrollo
   explícitos y no exponerlas como parte del despliegue base.
 
 ### Verificación automática
@@ -345,9 +345,6 @@ manualmente, y la indisponibilidad del stack nunca bloquea negocio.
   `concurrency-smoke` y un `quality-gate` agregador.
 - [ ] Mantener Checkstyle como linter de warnings y la revisión de formato no obligatoria, conforme a
   la guía de estilo; las demás puertas funcionales sí deben bloquear cuando fallen.
-- [ ] Incorporar, cuando exista una versión compatible con Java 26, análisis estático de miembros y
-  ramas no utilizados. Empezar como warning, revisar falsos positivos y eliminar código solo después
-  de contrastarlo con los contratos y los hitos futuros de este roadmap.
 - [ ] Añadir validadores de contratos, Bruno, k6 multirréplica, constraints de recursos y las pruebas
   deterministas de mensajería/concurrencia de M1-M4.
 - [ ] Agregar workflows manuales/programados para fuzzing, presión, caos y resiliencia extendida.

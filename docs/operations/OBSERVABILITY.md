@@ -1,6 +1,6 @@
 # Observabilidad y telemetría
 
-Estado: **Diseño aceptado; perfil local opcional**
+Estado: **Implementado; perfil local opcional**
 
 ## Objetivo
 
@@ -68,7 +68,7 @@ Las métricas usan labels acotados como `service`, `operation`, `event_type`, `o
 
 ## Métricas de negocio y transporte
 
-- `orders_created_total` y transiciones por estado/outcome.
+- `orders_total` (contador de órdenes creadas normalizado por Micrometer) y transiciones por estado/outcome.
 - `inventory_reservations_total{outcome}` y `inventory_releases_total`.
 - reposiciones por resultado, replays de movimientos y conflictos de versión en reconteos, sin IDs como labels.
 - cantidad y edad de cancelaciones con `inventoryCancellationStatus=PENDING`, diferenciadas de pedidos ya terminales.
@@ -80,9 +80,15 @@ Las métricas usan labels acotados como `service`, `operation`, `event_type`, `o
 - HTTP latency/error rate, JVM, GC, threads/virtual threads y Hikari pool.
 - profundidad de colas, unacked messages, consumers y publisher confirms de RabbitMQ.
 
+El perfil `observability` habilita histogramas Prometheus para `http.server.requests`; el perfil
+base no los habilita para mantener una exposición mínima.
+
 ## Dashboards mínimos
 
-1. **Order lifecycle:** volumen, estados terminales, latencia y rechazos.
+1. **Order lifecycle:** volumen, estados terminales, latencia y rechazos. Las series temporales
+   muestran tasas (`ops/s`) para analizar actividad y comportamiento en el tiempo; el panel
+   **Volumen del período** muestra cantidades absolutas acumuladas en el rango seleccionado
+   mediante `increase(...)`, como pedidos creados y transiciones de estado.
 2. **Inventory consistency:** reservas/liberaciones, faltantes y conflictos de actualización.
 3. **Messaging:** publish/confirm, deliveries, retries, duplicados, outbox y DLQ.
 4. **Runtime/resources:** CPU, memoria, GC, conexiones, HTTP y saturación.
@@ -104,3 +110,31 @@ Las alertas usan ventanas y duración para evitar ruido por fallos transitorios 
 El Compose normal no inicia este stack. `--profile observability` agrega los cinco servicios. Se definen healthchecks, retención corta y límites de disco/memoria apropiados para desarrollo.
 
 En pruebas `constrained`, el stack se mantiene apagado para no consumir el presupuesto de CPU/memoria que se desea asignar al sistema, salvo una suite específica que compruebe que la pérdida temporal del Collector no bloquea el negocio. La exportación de telemetría siempre es asíncrona y con buffers acotados.
+
+## Ejecución reproducible
+
+Desde el root:
+
+```text
+java scripts/Verify.java observability
+```
+
+Para inspección manual:
+
+```text
+docker compose -f compose.yaml -f deploy/compose/observability.yaml --profile observability up --build --wait --wait-timeout 180
+```
+
+El agente Java `2.10.0` se descarga en un volumen efímero del perfil y exporta trazas/logs por
+OTLP; sus métricas están desactivadas para evitar duplicarlas con Micrometer. Las apps exponen
+Prometheus solo con el perfil activo. Grafana se publica en `127.0.0.1:13000`, Prometheus en
+`127.0.0.1:19090`, y OTLP en `127.0.0.1:4317/4318`. El perfil usa retención de seis horas,
+límites de memoria de desarrollo y no modifica el Compose base.
+
+Para generar actividad nueva durante la inspección visual, ejecutar `demo-data` con
+`--periodic --interval-seconds 10 --cycles 12`; sus claves únicas evitan que los volúmenes
+persistentes conviertan toda la ejecución en replay idempotente.
+
+Los IDs de pedido, evento y correlación aparecen únicamente en logs/trazas; nunca se usan como
+labels de Prometheus. Las métricas usan nombres de operación, estado, resultado, consumidor,
+intento y tipo de evento, todos de cardinalidad acotada.

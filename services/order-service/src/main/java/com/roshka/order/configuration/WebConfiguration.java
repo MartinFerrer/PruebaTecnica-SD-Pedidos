@@ -2,6 +2,7 @@ package com.roshka.order.configuration;
 
 import com.roshka.order.domain.BusinessException;
 import com.roshka.platform.json.JsonCodec;
+import com.roshka.platform.observability.PlatformMetrics;
 import com.roshka.platform.web.RequestTransactions;
 import java.util.Optional;
 import org.springframework.context.annotation.Bean;
@@ -14,11 +15,11 @@ public class WebConfiguration {
 
 	@Bean
 	RequestTransactions requestTransactions(JdbcClient db, JsonCodec json,
-			PlatformTransactionManager transactionManager) {
+			PlatformTransactionManager transactionManager, PlatformMetrics metrics) {
 		return new RequestTransactions(db, json, transactionManager,
 				failure -> failure instanceof BusinessException business
 						? Optional.of(new RequestTransactions.Failure(status(business.kind()), business.code()))
-						: Optional.empty());
+						: Optional.empty(), metrics);
 	}
 
 	private static int status(BusinessException.Kind kind) {

@@ -6,7 +6,7 @@
 - Contratos OpenAPI y AsyncAPI en `contracts/`; creación/listado/consulta/cancelación de pedidos y creación/listado/consulta/recuento/reposición de stock.
 - PostgreSQL privado por servicio, Flyway desde una base vacía, idempotencia HTTP persistida, movimiento de reposición único y control de versión para recuentos.
 - RabbitMQ, outbox con lease y confirmación de publicación, inbox transaccional, ACK posterior al commit, retry y DLQ. Reserva de todos los ítems o ninguno y tombstone de cancelación anticipada.
-- Compose base de cinco contenedores, un runner one-shot `demo-data`, overrides para dos réplicas/cuotas y perfil Toxiproxy. Logs JSON, contexto HTTP/envelopes y header de instancia; no equivale todavía a exportar spans OpenTelemetry.
+- Compose base de cinco contenedores, un runner one-shot `demo-data`, overrides para réplicas/cuotas, Toxiproxy y observabilidad. Logs JSON, contexto HTTP/envelopes, spans OTLP y header de instancia.
 - ArchUnit, checks iniciales de contratos, JaCoCo y workflow CI con comandos portables Maven/Compose. El formato queda bajo revisión manual. La cobertura exigida es 85% de líneas y 75% de ramas del dominio y aplicación, no de todos los adaptadores.
 - `shared-library` centraliza solo infraestructura repetida (topología RabbitMQ, confirmación, outbox, JSON, correlación, idempotencia/transacciones HTTP, contratos de eventos, respuesta de error y mecánica transaccional de consumidores); una regla arquitectónica evita dependencias hacia los dominios. Las excepciones de Order e Inventory permanecen en sus propios servicios.
 
@@ -36,7 +36,8 @@ java scripts/Verify.java acceptance
 
 El runner de M0 deja metadata, logs sanitizados, versiones de herramientas, configuración,
 imágenes y reportes Maven en `reports/verification/<suite>/<run-id>/`. Las suites `property` y
-`fuzz` siguen siendo explícitamente pendientes; no se cuentan como ejecutadas.
+`fuzz` sigue siendo explícitamente pendiente; no se cuenta como ejecutada. `observability` valida el
+arranque del perfil, healthchecks y descubrimiento de Order, Inventory y RabbitMQ en Prometheus.
 
 Los reportes unitarios e integración quedan en `services/*/target/{surefire,failsafe}-reports`; cobertura en `services/*/target/site/jacoco`. CI conserva estos reportes como artefactos. El workflow aún no se ejecutó en GitHub.
 
@@ -47,6 +48,6 @@ cierre se mantienen en el
 [roadmap de implementación y verificación](../delivery/IMPLEMENTATION-ROADMAP.md). Resumen:
 
 - Property tests, fuzzing con semillas/corpus, pruebas de saturación prolongada y campañas severas de caos.
-- Stack opcional de observabilidad y exportación de spans/métricas; publicación en GHCR y análisis de seguridad adicionales previstos en el diseño de CI/CD.
+- Property tests, fuzzing con semillas/corpus, publicación en GHCR y análisis de seguridad adicionales previstos en el diseño de CI/CD.
 
 La implementación inicial de Inventory guarda los ítems de una reserva como JSON en su propia fila, en lugar de una tabla de detalle: el agregado se bloquea y persiste atómicamente. Esto no comparte datos con Order ni modifica el protocolo. Los cambios futuros de almacenamiento requieren migraciones hacia adelante.

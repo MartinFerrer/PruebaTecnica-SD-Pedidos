@@ -1,0 +1,49 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: roshka-alerts
+    folder: Roshka
+    interval: 1m
+    rules:
+      - uid: roshka-dlq
+        title: Mensajes en DLQ
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model: {expr: 'sum(rabbitmq_queue_messages{queue=~".*\\.dlq"})', instant: true, refId: A}
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange: {from: 600, to: 0}
+            model: {expression: A, type: reduce, reducer: last, refId: B}
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: {from: 600, to: 0}
+            model: {expression: B > 0, type: math, refId: C}
+        noDataState: NoData
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: "RabbitMQ tiene mensajes en DLQ"}
+        labels: {severity: warning}
+      - uid: roshka-readiness
+        title: Readiness no disponible
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model: {expr: 'up{job=~"order-service|inventory-service"}', instant: true, refId: A}
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange: {from: 600, to: 0}
+            model: {expression: A, type: reduce, reducer: min, refId: B}
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: {from: 600, to: 0}
+            model: {expression: B < 1, type: math, refId: C}
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 1m
+        annotations: {summary: "Un servicio no está listo"}
+        labels: {severity: critical}

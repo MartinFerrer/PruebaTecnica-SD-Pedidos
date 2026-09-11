@@ -10,6 +10,7 @@ import com.roshka.order.application.port.out.OrderStore;
 import com.roshka.order.domain.BusinessException;
 import com.roshka.order.domain.Order;
 import com.roshka.order.domain.OrderStatus;
+import com.roshka.platform.observability.PlatformMetrics;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,10 +28,17 @@ public class OrderService implements CreateOrderUseCase, FindOrdersQuery, Cancel
 
 	private final Supplier<UUID> ids;
 
+	private final PlatformMetrics metrics;
+
 	public OrderService(OrderStore store, EventPublisherPort events, Supplier<UUID> ids) {
+		this(store, events, ids, PlatformMetrics.noop());
+	}
+
+	public OrderService(OrderStore store, EventPublisherPort events, Supplier<UUID> ids, PlatformMetrics metrics) {
 		this.store = store;
 		this.events = events;
 		this.ids = ids;
+		this.metrics = metrics;
 	}
 
 	@Override
@@ -41,6 +49,8 @@ public class OrderService implements CreateOrderUseCase, FindOrdersQuery, Cancel
 			.toList();
 		Order order = new Order(ids.get(), items, OrderStatus.PENDING, 1, null, 0, List.of());
 		store.save(order);
+		metrics.increment("orders_created_total");
+		metrics.increment("order_state_transitions_total", "state", "PENDING", "outcome", "created");
 		events.publish("OrderCreated", order.orderId(), 1,
 				Map.of("orderId", order.orderId(), "items", command.items()));
 		return order;
@@ -63,6 +73,7 @@ public class OrderService implements CreateOrderUseCase, FindOrdersQuery, Cancel
 		if (after != before) {
 			store.save(after);
 			events.publish("OrderCancelled", orderId, after.version(), Map.of("orderId", orderId, "reason", reason));
+			metrics.increment("order_state_transitions_total", "state", "CANCELLED", "outcome", "accepted");
 		}
 		return new CancelOrderUseCase.Result(after, after != before);
 	}
@@ -95,6 +106,7 @@ public class OrderService implements CreateOrderUseCase, FindOrdersQuery, Cancel
 		};
 		if (after != before) {
 			store.save(after);
+			metrics.increment("order_state_transitions_total", "state", after.status().name(), "outcome", "event");
 		}
 	}
 

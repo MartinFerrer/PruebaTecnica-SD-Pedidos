@@ -2,8 +2,17 @@ package com.roshka.platform.messaging;
 
 import com.rabbitmq.client.Channel;
 import com.roshka.platform.json.JsonCodec;
+import com.roshka.platform.observability.PlatformMetrics;
 import java.io.IOException;
+import java.util.Map;
 import java.util.UUID;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.TextMapGetter;
+import org.slf4j.MDC;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
@@ -42,9 +51,34 @@ public abstract class TransactionalEventConsumer {
 
 	private final String expectedProducer;
 
+	private final PlatformMetrics metrics;
+
+	private final io.opentelemetry.api.trace.Tracer tracer = GlobalOpenTelemetry.getTracer(
+			"com.roshka.platform.messaging");
+
+	private static final TextMapGetter<Map<String, Object>> AMQP_HEADERS = new TextMapGetter<>() {
+		@Override
+		public Iterable<String> keys(Map<String, Object> carrier) {
+			return carrier.keySet();
+		}
+
+		@Override
+		public String get(Map<String, Object> carrier, String key) {
+			Object value = carrier.get(key);
+			return value == null ? null : value.toString();
+		}
+	};
+
 	protected TransactionalEventConsumer(JsonCodec json, JdbcClient db, PlatformTransactionManager manager,
 			ConfirmedPublisher publisher, String consumerName, String inputQueue, String retryPrefix,
 			String deadLetterQueue, String expectedProducer) {
+		this(json, db, manager, publisher, consumerName, inputQueue, retryPrefix, deadLetterQueue, expectedProducer,
+				PlatformMetrics.noop());
+	}
+
+	protected TransactionalEventConsumer(JsonCodec json, JdbcClient db, PlatformTransactionManager manager,
+			ConfirmedPublisher publisher, String consumerName, String inputQueue, String retryPrefix,
+			String deadLetterQueue, String expectedProducer, PlatformMetrics metrics) {
 		this.json = json;
 		this.db = db;
 		this.tx = new TransactionTemplate(manager);
@@ -54,6 +88,7 @@ public abstract class TransactionalEventConsumer {
 		this.retryPrefix = retryPrefix;
 		this.deadLetterQueue = deadLetterQueue;
 		this.expectedProducer = expectedProducer;
+		this.metrics = metrics;
 		this.tx.setTimeout(15);
 	}
 
@@ -63,12 +98,24 @@ public abstract class TransactionalEventConsumer {
 
 	protected final void consume(Message message, Channel channel) throws IOException {
 		long tag = message.getMessageProperties().getDeliveryTag();
+		Map<String, Object> headers = message.getMessageProperties().getHeaders();
+		Context parent = GlobalOpenTelemetry.getPropagators().getTextMapPropagator()
+			.extract(Context.current(), headers, AMQP_HEADERS);
+		Span span = tracer.spanBuilder("messaging.process")
+			.setSpanKind(SpanKind.CONSUMER)
+			.setParent(parent)
+			.setAttribute("messaging.system", "rabbitmq")
+			.setAttribute("messaging.destination.name", inputQueue)
+			.startSpan();
 		try {
+			try (Scope ignored = span.makeCurrent()) {
 			if (message.getBody().length > 262_144) {
 				throw new IllegalArgumentException("MESSAGE_TOO_LARGE");
 			}
 			JsonNode event = json.mapper.readTree(message.getBody());
 			validate(event);
+			span.setAttribute("messaging.event.type", event.path("eventType").asText());
+			span.setAttribute("messaging.message.id", event.path("eventId").asText());
 			tx.executeWithoutResult(status -> {
 				db.sql("SET LOCAL lock_timeout = '3s'").update();
 				int added = db
@@ -81,15 +128,38 @@ public abstract class TransactionalEventConsumer {
 					var context = new MessageContext(requiredText(event, "correlationId"),
 							requiredText(event, "eventId"), requiredText(event, "traceparent"));
 					try (var scope = context.open()) {
-						handle(event);
+						MDC.put("service", serviceName());
+						MDC.put("event_id", requiredText(event, "eventId"));
+						String orderId = event.path("payload").path("orderId").asText(null);
+						if (orderId != null) {
+							MDC.put("order_id", orderId);
+						}
+						try {
+							handle(event);
+							metrics.increment("messages_processed_total", "event_type", event.path("eventType").asText(),
+									"outcome", "processed");
+						}
+						finally {
+							MDC.remove("service");
+							MDC.remove("event_id");
+							MDC.remove("order_id");
+						}
 					}
+				}
+				else {
+					metrics.increment("message_duplicates_total", "consumer", consumerName);
 				}
 				checkpoint("before-commit");
 			});
+			}
 		}
 		catch (RuntimeException e) {
+			span.recordException(e);
 			transferFailure(message, channel, e);
 			return;
+		}
+		finally {
+			span.end();
 		}
 		checkpoint("after-commit");
 		checkpoint("before-ack");
@@ -115,6 +185,8 @@ public abstract class TransactionalEventConsumer {
 		boolean permanent = isPermanentFailure(failure);
 		String destination = permanent || attempt >= RETRY_DELAYS_SECONDS.length ? deadLetterQueue
 				: retryPrefix + RETRY_DELAYS_SECONDS[attempt];
+		metrics.increment(permanent || attempt >= RETRY_DELAYS_SECONDS.length ? "message_dlq_total" : "message_retries_total",
+				"consumer", consumerName, "attempt", Integer.toString(attempt + 1));
 		var props = new MessageProperties();
 		props.getHeaders().putAll(message.getMessageProperties().getHeaders());
 		props.setHeader("retry-attempt", attempt + 1);
@@ -135,6 +207,14 @@ public abstract class TransactionalEventConsumer {
 		checkpoint("before-ack");
 		channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
 		checkpoint("after-ack");
+	}
+
+	private String serviceName() {
+		String configured = System.getenv("OTEL_SERVICE_NAME");
+		if (configured == null || configured.isBlank()) {
+			configured = System.getProperty("spring.application.name", "application");
+		}
+		return configured;
 	}
 
 	private void validate(JsonNode event) {

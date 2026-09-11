@@ -1,0 +1,77 @@
+{
+    "uid": "messaging",
+    "title": "Messaging",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+        {
+            "type": "timeseries",
+            "title": "Outbox y confirms",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "outbox_pending",
+                    "legendFormat": "outbox"
+                },
+                {
+                    "expr": "sum(rate(publisher_confirms_total[5m])) by (outcome)",
+                    "legendFormat": "confirm {{outcome}}"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {"unit": "ops", "decimals": 2, "min": 0},
+                "overrides": [
+                    {"matcher": {"id": "byName", "options": "outbox"}, "properties": [{"id": "unit", "value": "short"}, {"id": "decimals", "value": 0}]}
+                ]
+            }
+        },
+        {
+            "type": "timeseries",
+            "title": "Retries y DLQ",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(message_retries_total[5m]))",
+                    "legendFormat": "retries"
+                },
+                {
+                    "expr": "sum(rate(message_dlq_total[5m]))",
+                    "legendFormat": "dlq"
+                }
+            ],
+            "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2, "min": 0}, "overrides": []}
+        },
+        {
+            "type": "timeseries",
+            "title": "RabbitMQ backlog",
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "sum(rabbitmq_queue_messages)",
+                    "legendFormat": "ready"
+                },
+                {
+                    "expr": "sum(rabbitmq_queue_messages_unacked)",
+                    "legendFormat": "unacked"
+                }
+            ],
+            "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "min": 0}, "overrides": []}
+        }
+    ]
+}

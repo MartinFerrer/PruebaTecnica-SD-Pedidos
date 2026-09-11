@@ -7,6 +7,7 @@ import com.roshka.inventory.domain.BusinessException;
 import com.roshka.platform.json.JsonCodec;
 import com.roshka.platform.messaging.ConfirmedPublisher;
 import com.roshka.platform.messaging.TransactionalEventConsumer;
+import com.roshka.platform.observability.PlatformMetrics;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
@@ -26,9 +27,9 @@ public class EventConsumer extends TransactionalEventConsumer {
 
 	public EventConsumer(JsonCodec json, JdbcClient db, PlatformTransactionManager manager,
 			ConfirmedPublisher publisher, ReserveStockUseCase reserveStock,
-			CancelReservationUseCase cancelReservation) {
+			CancelReservationUseCase cancelReservation, PlatformMetrics metrics) {
 		super(json, db, manager, publisher, "inventory", "inventory.in", "inventory.retry.", "inventory.dlq",
-				"order-service");
+				"order-service", metrics);
 		this.reserveStock = reserveStock;
 		this.cancelReservation = cancelReservation;
 	}

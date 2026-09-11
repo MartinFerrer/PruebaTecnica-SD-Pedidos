@@ -45,7 +45,8 @@ Jobs propuestos:
 4. `container`: construir ambas imágenes sin publicar y escanearlas.
 5. `e2e`: Docker Compose, healthchecks y Bruno CLI.
 6. `concurrency-smoke`: múltiples réplicas, k6 corto y smoke con cuotas efectivas de recursos e interrupción recuperable de red; verifica convergencia e invariantes finales.
-7. `quality-gate`: agrega resultados para protección de `main`; falla ante un job requerido fallido, cancelado u omitido. No usar filtros que omitan silenciosamente pruebas requeridas de un cambio de comportamiento.
+7. `observability-smoke`: levanta el perfil opcional, comprueba healthchecks y valida que Prometheus descubra las apps y RabbitMQ.
+8. `quality-gate`: agrega resultados para protección de `main`; falla ante un job requerido fallido, cancelado u omitido. No usar filtros que omitan silenciosamente pruebas requeridas de un cambio de comportamiento.
 
 Los property tests rápidos forman parte de `unit`. El fuzzing largo y la degradación severa de recursos no bloquean cada PR porque consumirían demasiado tiempo, pero cualquier semilla de regresión descubierta sí se agrega a la suite obligatoria.
 

@@ -1,6 +1,7 @@
 package com.roshka.platform.messaging;
 
 import java.util.UUID;
+import io.opentelemetry.api.trace.Span;
 import org.slf4j.MDC;
 
 public record MessageContext(String correlationId, String causationId, String traceparent) {
@@ -32,6 +33,7 @@ public record MessageContext(String correlationId, String causationId, String tr
 		MDC.put("correlation_id", context.correlationId());
 		MDC.put("causation_id", context.causationId());
 		MDC.put("trace_id", context.traceparent().substring(3, 35));
+		MDC.put("span_id", Span.current().getSpanContext().getSpanId());
 	}
 
 	public record Scope(MessageContext previous) implements AutoCloseable {
@@ -42,6 +44,7 @@ public record MessageContext(String correlationId, String causationId, String tr
 				MDC.remove("correlation_id");
 				MDC.remove("causation_id");
 				MDC.remove("trace_id");
+				MDC.remove("span_id");
 			}
 			else {
 				CURRENT.set(previous);

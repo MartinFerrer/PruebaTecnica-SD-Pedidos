@@ -11,6 +11,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from argparse import ArgumentParser
+from datetime import datetime, timezone
 
 
 INVENTORY_URL = os.getenv("INVENTORY_URL", "http://inventory-service:8080")
@@ -25,6 +27,7 @@ PRODUCTS = (
 )
 MISSING_PRODUCT_ID = "00000000-0000-4000-8000-000000000404"
 RESTOCK_MOVEMENT_ID = "10000000-0000-4000-8000-000000000001"
+PERIODIC_DATASET_VERSION = "v2"
 
 
 def call(method, url, body=None, idempotency_key=None, expected=(200,)):
@@ -96,7 +99,129 @@ def create_order(name, items):
     return result["orderId"]
 
 
+def create_periodic_order(prefix, state, items):
+    result = idempotent_post(
+        f"{ORDER_URL}/orders",
+        {"items": items},
+        f"{prefix}-order-{state}",
+        (202,),
+    )
+    return result["orderId"]
+
+
+def periodic_batch(run_id, cycle, batch):
+    prefix = f"demo-{PERIODIC_DATASET_VERSION}-{run_id}-{cycle}-{batch}"
+    product = idempotent_post(
+        f"{INVENTORY_URL}/products",
+        {
+            "sku": f"PERIODIC-{PERIODIC_DATASET_VERSION}-{run_id}-{cycle}-{batch}",
+            "name": f"Periodic product {cycle}-{batch}",
+            "initialStock": 2,
+        },
+        f"{prefix}-product",
+        (201,),
+    )
+    product_id = product["productId"]
+    restock = idempotent_post(
+        f"{INVENTORY_URL}/products/{product_id}/restock",
+        {"movementId": product_id, "quantity": 1, "reason": "DEMO_PERIODIC"},
+        f"{prefix}-restock",
+        (201,),
+    )
+
+    confirmed_id = create_periodic_order(
+        prefix, "confirmed", [{"productId": product_id, "quantity": 1}]
+    )
+    wait_order(confirmed_id, "CONFIRMED")
+    cancelled_id = create_periodic_order(
+        prefix, "cancelled", [{"productId": product_id, "quantity": 1}]
+    )
+    wait_order(cancelled_id, "CONFIRMED")
+    idempotent_post(
+        f"{ORDER_URL}/orders/{cancelled_id}/cancel",
+        {"reason": "DEMO_PERIODIC"},
+        f"{prefix}-cancel",
+        (202,),
+    )
+    wait_order(cancelled_id, "CANCELLED", "COMPLETED")
+    rejected_id = create_periodic_order(
+        prefix, "rejected", [{"productId": MISSING_PRODUCT_ID, "quantity": 1}]
+    )
+    wait_order(rejected_id, "REJECTED")
+    return {
+        "batch": batch,
+        "productId": product_id,
+        "restockMovementId": restock["movementId"],
+        "orders": {
+            "confirmed": confirmed_id,
+            "cancelled": cancelled_id,
+            "rejected": rejected_id,
+        },
+    }
+
+
+def periodic(args):
+    run_id = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    cycles = []
+    cycle = 1
+    while args.cycles == 0 or cycle <= args.cycles:
+        batches = [
+            periodic_batch(run_id, cycle, batch)
+            for batch in range(1, args.orders_per_cycle + 1)
+        ]
+        cycles.append({"cycle": cycle, "batches": batches})
+        if args.cycles == 0 or cycle < args.cycles:
+            time.sleep(args.interval_seconds)
+        cycle += 1
+    print(
+        json.dumps(
+            {"runId": run_id, "cycles": cycles, "result": "periodic-demo-ready"}, indent=2
+        )
+    )
+
+
 def main():
+    global INVENTORY_URL, ORDER_URL, TIMEOUT_SECONDS
+
+    parser = ArgumentParser(description="Carga datos demo por una vez o en ciclos periódicos")
+    parser.add_argument("--inventory-url", default=INVENTORY_URL, help="URL pública de Inventory")
+    parser.add_argument("--order-url", default=ORDER_URL, help="URL pública de Order")
+    parser.add_argument("--timeout-seconds", type=int, default=TIMEOUT_SECONDS, help="timeout de convergencia")
+    parser.add_argument("--periodic", action="store_true", help="crea productos y órdenes con cada ciclo")
+    parser.add_argument(
+        "--interval-seconds",
+        type=float,
+        default=10,
+        help="pausa entre ciclos; admite decimales y 0 para ejecución continua",
+    )
+    parser.add_argument(
+        "--orders-per-cycle",
+        type=int,
+        default=1,
+        help="lotes de tres pedidos por ciclo (confirmado, cancelado y rechazado)",
+    )
+    parser.add_argument(
+        "--cycles", type=int, default=0, help="cantidad de ciclos; 0 mantiene el modo continuo"
+    )
+    parser.add_argument("--run-id", help="identificador corto para separar una ejecución")
+    args = parser.parse_args()
+    if (
+        args.interval_seconds < 0
+        or args.cycles < 0
+        or args.orders_per_cycle <= 0
+        or args.timeout_seconds <= 0
+    ):
+        parser.error(
+            "interval-seconds no puede ser negativo; cycles no puede ser negativo; "
+            "orders-per-cycle debe ser positivo; timeout debe ser positivo"
+        )
+    INVENTORY_URL = args.inventory_url.rstrip("/")
+    ORDER_URL = args.order_url.rstrip("/")
+    TIMEOUT_SECONDS = args.timeout_seconds
+    if args.periodic:
+        periodic(args)
+        return
+
     product_ids = create_products()
     restock = idempotent_post(
         f"{INVENTORY_URL}/products/{product_ids['keyboard']}/restock",

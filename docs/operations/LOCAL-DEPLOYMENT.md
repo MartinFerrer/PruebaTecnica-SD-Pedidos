@@ -1,6 +1,6 @@
 # Despliegue local y datos predeterminados
 
-Estado: **Base/default, demo-data, réplicas, recursos y caos corto implementados; observabilidad sigue pendiente**
+Estado: **Base/default, demo-data, réplicas, recursos, caos corto y observabilidad implementados**
 
 ## Uso disponible actualmente
 
@@ -23,7 +23,7 @@ segmentos `{productId}` y `{orderId}` no aceptan valores numéricos como `0`; en
 
 `docker compose down` detiene el entorno y conserva volúmenes. No usar opciones de eliminación de volúmenes si se desean conservar los datos.
 
-El perfil `demo-data`, el override `replicas` y el perfil `chaos` están disponibles. Ver [estado de verificación](../testing/IMPLEMENTATION-VERIFICATION.md).
+El perfil `demo-data`, el override `replicas` y los perfiles `chaos` y `observability` están disponibles. Ver [estado de verificación](../testing/IMPLEMENTATION-VERIFICATION.md).
 
 ## Contenedores base
 
@@ -74,13 +74,17 @@ Después del alta, el runner `populate_dummy_data.py` aplica una reposición dem
 
 Cada llamada usa una `Idempotency-Key` estable y específica de la versión del dataset. El runner captura los `productId` de las respuestas/replays, espera estados con polling acotado y comprueba las poscondiciones del escenario. Ejecutarlo otra vez obtiene replays de las mismas operaciones y no suma stock ni crea pedidos extra; las identidades no expiran en este alcance. El runner no usa reconteos para restaurar balances y no modifica pedidos ajenos.
 
+En modo periódico, `--orders-per-cycle` controla cuántos lotes de tres pedidos se crean por ciclo
+(confirmado, cancelado y rechazado). `--interval-seconds` acepta valores decimales y `0` para
+ejecutar ciclos sin pausa; cada lote usa claves idempotentes distintas.
+
 La prueba de saldos exactos del dataset se ejecuta en volúmenes de prueba vacíos y sin carga externa. Tras interacción manual, volver a ejecutar el runner solo verifica identidades y estados de sus pedidos: no exige los saldos iniciales ni deshace cambios del desarrollador. CI ejecuta el runner dos veces en secuencia sin duplicar cantidades; la variante concurrente continúa como ampliación de la suite de carreras. Un dataset nuevo debe tener una estrategia explícita de versionado; cambiar payloads con las mismas claves es un conflicto, no un mecanismo de actualización.
 
 ## Formas de inicio
 
 - sistema vacío: `docker compose up --wait`;
 - sistema con datos: primero `docker compose up --build --wait --wait-timeout 180`, después `docker compose --profile demo-data run --build --rm demo-data` y comprobar su código de salida;
-- sistema observable: `docker compose --profile observability up --wait`;
+- sistema observable: `docker compose -f compose.yaml -f deploy/compose/observability.yaml --profile observability up --build --wait --wait-timeout 180`;
 - prueba limitada: archivo base más override `constrained` y, cuando corresponda, override/perfil `chaos`.
 - réplicas y k6: archivo base más `deploy/compose/replicas.yaml`; el runner activa dos réplicas y el servicio k6.
 - caos corto: archivo base más `deploy/compose/chaos.yaml`; el runner crea proxies para ambas bases y RabbitMQ.

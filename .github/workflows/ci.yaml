@@ -36,6 +36,8 @@ jobs:
         run: java scripts/Verify.java concurrency --seed ci-${{ github.run_id }}
       - name: Constrained resource smoke
         run: java scripts/Verify.java constrained --seed ci-${{ github.run_id }}
+      - name: Observability smoke
+        run: java scripts/Verify.java observability --seed ci-${{ github.run_id }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

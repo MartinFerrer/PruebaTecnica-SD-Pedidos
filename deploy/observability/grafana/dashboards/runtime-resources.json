@@ -1,0 +1,64 @@
+{
+    "uid": "runtime-resources",
+    "title": "Runtime and resources",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+        {
+            "type": "timeseries",
+            "title": "Readiness",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "up{job=~\"order-service|inventory-service\"}",
+                    "legendFormat": "{{job}}"
+                }
+            ],
+            "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "min": 0, "max": 1}, "overrides": []}
+        },
+        {
+            "type": "timeseries",
+            "title": "JVM memory",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "sum by (service) (jvm_memory_used_bytes)",
+                    "legendFormat": "{{service}}"
+                }
+            ],
+            "fieldConfig": {"defaults": {"unit": "bytes", "decimals": 0, "min": 0}, "overrides": []}
+        },
+        {
+            "type": "timeseries",
+            "title": "Hikari conexiones",
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "sum by (service) (hikaricp_connections_active)",
+                    "legendFormat": "{{service}} active"
+                },
+                {
+                    "expr": "sum by (service) (hikaricp_connections_pending)",
+                    "legendFormat": "{{service}} pending"
+                }
+            ],
+            "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "min": 0}, "overrides": []}
+        }
+    ]
+}

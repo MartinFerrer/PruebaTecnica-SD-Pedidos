@@ -59,38 +59,16 @@ cancelado, ejecute después del arranque:
 ```text
 docker compose --profile demo-data run --build --rm demo-data
 ```
-
 El comando usa únicamente las APIs públicas, verifica la convergencia y puede repetirse sin crear
 operaciones adicionales ni volver a sumar stock.
 
-## Verificación reproducible
-
-Las puertas multiplataforma se ejecutan desde el root con Java 26, sin PowerShell ni scripts locales:
-
-```text
-java scripts/Verify.java quick
-java scripts/Verify.java full
-java scripts/Verify.java contracts
-java scripts/Verify.java acceptance
-java scripts/Verify.java concurrency
-java scripts/Verify.java constrained
-java scripts/Verify.java chaos
+Como alternativa, con Order e Inventory ya levantados y publicados en `localhost`, se puede
+ejecutar directamente el script sin construir el contenedor:
+```tex
+python deploy/demo-data/populate_dummy_data.py --inventory-url http://localhost:18082 --order-url http://localhost:18081
 ```
-
-En Windows también están disponibles `scripts/verify.cmd`; en Linux/macOS, `scripts/verify.sh`.
-El wrapper incluido usa Maven 3.9.16; alternativamente puede usarse Maven instalado con
-`mvn -B -ntp clean verify`. Cada ejecución deja versiones, configuración, límites, resultados y
-logs sanitizados en `reports/verification/<suite>/<run-id>/`.
-
-La colección Bruno versionada cubre los endpoints, errores y las transiciones de la Saga:
-[tests/bruno/README.md](tests/bruno/README.md). El replay controlado de DLQ está documentado en
-[DLQ-REPLAY.md](docs/operations/DLQ-REPLAY.md).
-
-`concurrency` ejecuta carreras deterministas, el verificador de invariantes y un smoke k6 con dos
-réplicas de Order e Inventory. `constrained` añade cuotas efectivas y presión corta. `chaos` usa
-Toxiproxy, aplica una latencia temporal a RabbitMQ y comprueba la recuperación. La campaña opcional
-Linux con `tc/netem` está en `scripts/netem.sh`; requiere `tc`, `nsenter` y privilegios, y no es
-necesaria para el desarrollo normal.
+La ejecución directa requiere Python 3.14 o compatible y usa las mismas APIs públicas que la
+alternativa Compose.
 
 ## RabbitMQ: elección y garantía de entrega
 
@@ -103,6 +81,62 @@ Se eligió RabbitMQ porque el sistema necesita comunicación asíncrona operacio
 - **Orden:** no se presupone orden global. `aggregateVersion`, locks por recurso y máquinas de estado resuelven eventos duplicados o fuera de orden.
 
 Los ACK del consumidor y los publisher confirms no constituyen two-phase commit. PostgreSQL y RabbitMQ se coordinan mediante transactional outbox/inbox, aceptando duplicados controlados en lugar de una transacción distribuida.
+
+## Observabilidad
+
+El perfil opcional de observabilidad se inicia con `docker compose -f compose.yaml -f
+deploy/compose/observability.yaml --profile observability up --build --wait`.
+Grafana queda en
+`http://127.0.0.1:13000`, Prometheus en `http://127.0.0.1:19090`, y las APIs observadas en
+`18081`/`18082`; el despliegue base no inicia ni expone este stack.
+
+Para generar actividad continua visible en Grafana, inicia el perfil de observabilidad y ejecuta
+ciclos con claves nuevas:
+```text
+docker compose -f compose.yaml -f deploy/compose/observability.yaml --profile observability up --build --wait
+docker compose -f compose.yaml -f deploy/compose/observability.yaml --profile observability --profile demo-data run --build --rm demo-data --periodic --interval-seconds 10 --cycles 12 --run-id grafana
+```
+Cada ciclo crea un lote por cada valor de `--orders-per-cycle`; cada lote crea un producto, repone stock y genera una orden confirmada, una cancelada y una rechazada. El valor predeterminado es `1`. `--interval-seconds` admite decimales y `0` para iniciar el siguiente ciclo inmediatamente;  `--cycles 0` mantiene el proceso hasta interrumpirlo. Después de iniciar la actividad, espera 10--20 segundos y actualiza Grafana.
+
+Si Order e Inventory ya están publicados en `localhost:18081` y `localhost:18082`, se puede
+ejecutar el generador directamente, sin construir el contenedor `demo-data`:
+```text
+python deploy/demo-data/populate_dummy_data.py --inventory-url http://localhost:18082 --order-url http://localhost:18081 --periodic --interval-seconds 1 --orders-per-cycle 5 --cycles 12 --run-id grafana
+```
+Los datos demo no tienen una API pública de borrado. Para limpiar las bases locales junto con el
+stack, detén el perfil y elimina sus volúmenes:
+```text
+docker compose -f compose.yaml -f deploy/compose/observability.yaml --profile observability --profile demo-data down -v
+```
+Esto borra todos los datos locales de Order e Inventory, no solo los creados por `demo-data`.
+
+## Verificación reproducible
+
+Las puertas multiplataforma se ejecutan desde el root con Java 26:
+```text
+java scripts/Verify.java quick
+java scripts/Verify.java full
+java scripts/Verify.java contracts
+java scripts/Verify.java acceptance
+java scripts/Verify.java concurrency
+java scripts/Verify.java constrained
+java scripts/Verify.java chaos
+java scripts/Verify.java observability
+```
+En Windows también están disponibles `scripts/verify.cmd`; en Linux/macOS, `scripts/verify.sh`.
+El wrapper incluido usa Maven 3.9.16; alternativamente puede usarse Maven instalado con
+`mvn -B -ntp clean verify`. Cada ejecución deja versiones, configuración, límites, resultados y
+logs sanitizados en `reports/verification/<suite>/<run-id>/`.
+
+La colección Bruno versionada cubre los endpoints, errores y las transiciones de la Saga:
+[tests/bruno/README.md](tests/bruno/README.md). El replay controlado de DLQ (Dead-Letter Queue) está documentado en
+[DLQ-REPLAY.md](docs/operations/DLQ-REPLAY.md).
+
+`concurrency` ejecuta carreras deterministas, el verificador de invariantes y un smoke k6 con dos
+réplicas de Order e Inventory. `constrained` añade cuotas efectivas y presión corta. `chaos` usa
+Toxiproxy, aplica una latencia temporal a RabbitMQ y comprueba la recuperación. La campaña opcional
+Linux con `tc/netem` está en `scripts/netem.sh`; requiere `tc`, `nsenter` y privilegios, y no es
+necesaria para el desarrollo normal.
 
 ## Desarrollo y verificación
 
@@ -146,4 +180,4 @@ carreras deterministas, invariantes, réplicas, cuotas y caos corto están imple
 automatizadas y un workflow de CI preparado; su ejecución remota requiere inicializar y publicar el
 repositorio. El informe de verificación distingue las comprobaciones ejecutadas de las pendientes.
 
-Compose local usa un nodo RabbitMQ y no ofrece HA. La consistencia eventual requiere recuperación de dependencias y replay de mensajes en DLQ cuando corresponda. Autenticación, pagos y despacho quedan fuera del alcance; no exponer este despliegue de desarrollo a Internet. Quedan pendientes los perfiles de observabilidad, fuzzing extensivo y publicación CD en GHCR.
+Compose local usa un nodo RabbitMQ (una sola instancia). La consistencia eventual requiere recuperación de dependencias y replay de mensajes en DLQ cuando corresponda. Quedan pendientes fuzzing extensivo y publicación CD en GHCR.

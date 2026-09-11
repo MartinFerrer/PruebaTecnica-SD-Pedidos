@@ -32,7 +32,7 @@ pendientes se mantienen en el
 | Stack de integración tipo Postman/Bruno | Bruno CLI contra Compose | Aceptado | Implementado | 22 solicitudes, 68 assertions por pasada, dos pasadas con replay |
 | Pruebas concurrentes | JUnit determinista y k6 | Aceptado | Implementado | 100 reservas, última unidad, orden inverso, recuento/reposición y k6 multirréplica |
 | Patrones/arquitectura | Hexagonal, Saga, outbox/inbox y state machine | Aceptado | Implementado | ArchUnit y revisión de código |
-| Observabilidad/trazabilidad | OTel, Prometheus, Tempo, Loki y Grafana | Aceptado | Pendiente | Actuator/logs base; stack posterior pendiente |
+| Observabilidad/trazabilidad | OTel, Prometheus, Tempo, Loki y Grafana | Aceptado | Implementado | Perfil `observability`, Java agent, métricas Micrometer, MDC correlacionado, dashboards y alertas |
 | Configuración de agentes/TDD/SDD | `AGENTS.md`, contratos y puertas CI | Aceptado | Parcial | Documentación/workflow base; branch protection pendiente |
 
 ## Decisiones adicionales del usuario

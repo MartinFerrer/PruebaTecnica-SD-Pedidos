@@ -26,7 +26,7 @@ import org.w3c.dom.Element;
 public final class Verify {
 
 	private static final Set<String> SUITES = Set.of("quick", "full", "contracts", "acceptance",
-			"concurrency", "property", "fuzz", "constrained", "chaos", "clean");
+			"concurrency", "property", "fuzz", "constrained", "chaos", "observability", "clean");
 
 	private static final Pattern SECRET = Pattern.compile(
 			"(?i)(ORDER_DB_PASSWORD|INVENTORY_DB_PASSWORD|RABBITMQ_PASSWORD|PASSWORD|TOKEN|SECRET)=([^\\s]+)");
@@ -140,6 +140,12 @@ public final class Verify {
 			configuration.put("overrides", List.of("deploy/compose/chaos.yaml"));
 			configuration.put("failureInjection", "Toxiproxy latency on rabbitmq proxy; restored before final check");
 		}
+		if (suite.equals("observability")) {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> configuration = (Map<String, Object>) metadata.get("configuration");
+			configuration.put("overrides", List.of("deploy/compose/observability.yaml"));
+			configuration.put("telemetry", "OTel Java agent; traces/logs OTLP; Micrometer Prometheus scrape");
+		}
 		writeMetadata();
 	}
 
@@ -161,6 +167,7 @@ public final class Verify {
 			case "fuzz" -> markPending("No existe todavía un perfil de fuzzing con semillas/corpus");
 			case "constrained" -> runConstrained();
 			case "chaos" -> runChaos();
+			case "observability" -> runObservability();
 			default -> throw new IllegalStateException("Unsupported suite: " + suite);
 		}
 	}
@@ -192,6 +199,9 @@ public final class Verify {
 		}
 		if (suite.equals("chaos")) {
 			command.addAll(List.of("-f", "deploy/compose/chaos.yaml"));
+		}
+		if (suite.equals("observability")) {
+			command.addAll(List.of("-f", "deploy/compose/observability.yaml"));
 		}
 		command.addAll(List.of(arguments));
 		return command;
@@ -334,6 +344,45 @@ public final class Verify {
 			runStep("chaos-logs", compose("logs", "--no-color"), true);
 			runStep("chaos-status", compose("ps", "-a"), true);
 			runStep("chaos-down", compose("down"), true);
+		}
+	}
+
+	private void runObservability() throws IOException {
+		if (!commandAvailable("docker")) {
+			markPending("Docker no está disponible para observability");
+			return;
+		}
+		try {
+			if (!runStep("observability-config", compose("config", "--quiet"), false)
+					|| !runStep("observability-up", compose("--profile", "observability", "up", "--build", "--wait",
+							"--wait-timeout", "240"), false)) {
+				return;
+			}
+			runStep("observability-demo", compose("--profile", "observability", "--profile", "demo-data", "run",
+				"--rm", "--no-deps", "demo-data"), false);
+			String targets = probe(compose("exec", "-T", "prometheus", "wget", "-qO-",
+				"http://localhost:9090/api/v1/targets"));
+			if (!targets.contains("order-service") || !targets.contains("inventory-service")
+					|| !targets.contains("rabbitmq")) {
+				markPending("Prometheus no descubrió Order, Inventory y RabbitMQ");
+			}
+			String query = probe(compose("exec", "-T", "prometheus", "wget", "-qO-",
+				"http://localhost:9090/api/v1/query?query=up"));
+			if (!query.contains("success") || !query.contains("data")) {
+				markPending("Prometheus no respondió una consulta de métricas");
+			}
+			for (String backend : List.of("tempo:3200/ready", "loki:3100/ready", "grafana:3000/api/health")) {
+				String health = probe(compose("exec", "-T", "prometheus", "wget", "-qO-",
+					"http://" + backend));
+				if (health.startsWith("unavailable:") || health.startsWith("exit=")) {
+					markPending("Backend de observabilidad no respondió: " + backend);
+				}
+			}
+		}
+		finally {
+			runStep("observability-logs", compose("logs", "--no-color"), true);
+			runStep("observability-status", compose("ps", "-a"), true);
+			runStep("observability-down", compose("--profile", "observability", "down"), true);
 		}
 	}
 

@@ -1,6 +1,7 @@
 package com.roshka.platform.web;
 
 import com.roshka.platform.json.JsonCodec;
+import com.roshka.platform.observability.PlatformMetrics;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Map;
@@ -36,7 +37,12 @@ public final class RequestTransactions {
 
 	public RequestTransactions(JdbcClient db, JsonCodec json, PlatformTransactionManager transactionManager,
 			Function<RuntimeException, Optional<Failure>> failureMapper) {
-		this.executor = new IdempotencyExecutor(db, json, transactionManager);
+		this(db, json, transactionManager, failureMapper, PlatformMetrics.noop());
+	}
+
+	public RequestTransactions(JdbcClient db, JsonCodec json, PlatformTransactionManager transactionManager,
+			Function<RuntimeException, Optional<Failure>> failureMapper, PlatformMetrics metrics) {
+		this.executor = new IdempotencyExecutor(db, json, transactionManager, metrics);
 		this.failureMapper = Objects.requireNonNull(failureMapper, "failureMapper");
 	}
 

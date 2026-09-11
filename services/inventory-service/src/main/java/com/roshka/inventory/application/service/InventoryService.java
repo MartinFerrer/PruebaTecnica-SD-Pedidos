@@ -11,6 +11,7 @@ import com.roshka.inventory.application.port.out.InventoryStore;
 import com.roshka.inventory.domain.BusinessException;
 import com.roshka.inventory.domain.Product;
 import com.roshka.inventory.domain.Stock;
+import com.roshka.platform.observability.PlatformMetrics;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
@@ -27,11 +28,19 @@ public class InventoryService
 
 	private final Supplier<UUID> ids;
 
+	private final PlatformMetrics metrics;
+
 	public InventoryService(InventoryStore store, EventPublisherPort events, Clock clock, Supplier<UUID> ids) {
+		this(store, events, clock, ids, PlatformMetrics.noop());
+	}
+
+	public InventoryService(InventoryStore store, EventPublisherPort events, Clock clock, Supplier<UUID> ids,
+			PlatformMetrics metrics) {
 		this.store = store;
 		this.events = events;
 		this.clock = clock;
 		this.ids = ids;
+		this.metrics = metrics;
 	}
 
 	@Override
@@ -48,6 +57,7 @@ public class InventoryService
 		StockChange change = change(product, null, ids.get(), command.initialStock(), "INITIAL");
 		store.movement("CREATE", null, product, change);
 		events.publish("ProductStockCreated", product.productId(), 1, snapshot(product));
+		metrics.increment("inventory_stock_changes_total", "operation", "create", "outcome", "success");
 		return snapshot(product);
 	}
 
@@ -66,6 +76,7 @@ public class InventoryService
 		store.lockIdentity("movement:" + command.movementId());
 		var existing = store.movement(command.movementId());
 		if (existing.isPresent()) {
+			metrics.increment("inventory_restock_replays_total");
 			StockChange value = existing.get();
 			if (!value.productId().equals(productId) || value.quantity() != command.quantity()
 					|| !value.reason().equals(command.reason())) {
@@ -81,6 +92,7 @@ public class InventoryService
 		store.update(after);
 		store.movement("RESTOCK", before, after, result);
 		events.publish("ProductStockReplenished", productId, next.version(), result);
+		metrics.increment("inventory_restock_total", "outcome", "success");
 		return result;
 	}
 
@@ -96,6 +108,7 @@ public class InventoryService
 			store.movement("RECOUNT", before, after, result);
 			events.publish("ProductStockUpdated", after.productId(), next.version(), result);
 		}
+		metrics.increment("inventory_recount_total", "outcome", "success");
 		return result;
 	}
 

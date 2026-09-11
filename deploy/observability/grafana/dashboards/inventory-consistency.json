@@ -1,0 +1,59 @@
+{
+    "uid": "inventory-consistency",
+    "title": "Inventory consistency",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+        {
+            "type": "timeseries",
+            "title": "Reservas",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "sum by (outcome) (rate(inventory_reservations_total[5m]))",
+                    "legendFormat": "{{outcome}}"
+                }
+            ],
+            "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2, "min": 0}, "overrides": []}
+        },
+        {
+            "type": "timeseries",
+            "title": "Liberaciones",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "sum by (outcome) (rate(inventory_releases_total[5m]))",
+                    "legendFormat": "{{outcome}}"
+                }
+            ],
+            "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2, "min": 0}, "overrides": []}
+        },
+        {
+            "type": "timeseries",
+            "title": "Ítems no disponibles",
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(unavailable_items_total[5m]))"
+                }
+            ],
+            "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2, "min": 0}, "overrides": []}
+        }
+    ]
+}
