@@ -31,6 +31,10 @@ jobs:
         run: docker compose config --quiet
       - name: Build and start local deployment
         run: docker compose up --build --wait --wait-timeout 180
+      - name: Seed demo data twice and verify idempotency
+        run: |
+          docker compose --profile demo-data run --build --rm demo-data
+          docker compose --profile demo-data run --rm demo-data
       - name: Collect diagnostics
         if: always()
         run: |

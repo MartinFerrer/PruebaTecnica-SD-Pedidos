@@ -48,13 +48,13 @@ class ServiceIT {
                         "{\"sku\":\"" + key + "\",\"name\":\"Trace\",\"initialStock\":1}")).build(),
             HttpResponse.BodyHandlers.ofString());
     assertThat(response.statusCode()).isEqualTo(201);
-    String id = JSON.readTree(response.body()).get("productId").asText();
+    String id = JSON.readTree(response.body()).get("productId").stringValue();
     var db = app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class);
     String body =
         db.sql("SELECT body FROM message_outbox WHERE body LIKE :id").param("id", "%" + id + "%").query(String.class)
             .single();
-    assertThat(JSON.readTree(body).get("traceparent").asText()).isEqualTo(trace);
-    assertThat(JSON.readTree(body).get("correlationId").asText()).isEqualTo(key);
+    assertThat(JSON.readTree(body).get("traceparent").stringValue()).isEqualTo(trace);
+    assertThat(JSON.readTree(body).get("correlationId").stringValue()).isEqualTo(key);
   }
 
   @Test
@@ -71,7 +71,7 @@ class ServiceIT {
                   start.await();
                   return request(
                       "POST",
-                      "/products/" + id + "/restocks",
+                      "/products/" + id + "/restock",
                       UUID.randomUUID().toString(),
                       "{\"movementId\":\"" + movement + "\",\"quantity\":5,\"reason\":\"RACE\"}");
                 }));
@@ -83,7 +83,7 @@ class ServiceIT {
     var extra =
         request(
             "POST",
-            "/products/" + id + "/restocks",
+            "/products/" + id + "/restock",
             UUID.randomUUID().toString(),
             "{\"movementId\":\"" + UUID.randomUUID() + "\",\"quantity\":7,\"reason\":\"RACE\"}");
     assertThat(extra.statusCode()).isEqualTo(201);
@@ -91,10 +91,80 @@ class ServiceIT {
   }
 
   @Test
+  void concurrentRecountsWithTheSameVersionHaveOneWinner() throws Exception {
+    String id = createProduct(20);
+    try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var start = new java.util.concurrent.CountDownLatch(1);
+      var first = pool.submit(() -> {
+        start.await();
+        return request(
+            "PUT",
+            "/products",
+            UUID.randomUUID().toString(),
+            "{\"productId\":\"" + id
+                + "\",\"stock\":25,\"expectedVersion\":1,\"reason\":\"COUNT_A\"}");
+      });
+      var second = pool.submit(() -> {
+        start.await();
+        return request(
+            "PUT",
+            "/products",
+            UUID.randomUUID().toString(),
+            "{\"productId\":\"" + id
+                + "\",\"stock\":30,\"expectedVersion\":1,\"reason\":\"COUNT_B\"}");
+      });
+      start.countDown();
+
+      var responses = java.util.List.of(first.get(), second.get());
+      assertThat(responses).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(200, 409);
+    }
+
+    var current = stock(id);
+    assertThat(current.get("onHand").asLong()).isIn(25L, 30L);
+    assertThat(current.get("version").asLong()).isEqualTo(2);
+  }
+
+  @Test
+  void oneMovementIdCannotRestockTwoProductsConcurrently() throws Exception {
+    String firstId = createProduct(10);
+    String secondId = createProduct(10);
+    String movementId = UUID.randomUUID().toString();
+    String body =
+        "{\"movementId\":\"" + movementId + "\",\"quantity\":5,\"reason\":\"DELIVERY\"}";
+    try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var start = new java.util.concurrent.CountDownLatch(1);
+      var first = pool.submit(() -> {
+        start.await();
+        return request(
+            "POST", "/products/" + firstId + "/restock", UUID.randomUUID().toString(), body);
+      });
+      var second = pool.submit(() -> {
+        start.await();
+        return request(
+            "POST", "/products/" + secondId + "/restock", UUID.randomUUID().toString(), body);
+      });
+      start.countDown();
+
+      var responses = java.util.List.of(first.get(), second.get());
+      assertThat(responses).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(201, 409);
+    }
+
+    assertThat(stock(firstId).get("onHand").asLong() + stock(secondId).get("onHand").asLong())
+        .isEqualTo(25);
+    var db = app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class);
+    assertThat(
+        db.sql("SELECT count(*) FROM stock_movements WHERE movement_id=CAST(:id AS uuid)")
+            .param("id", movementId)
+            .query(Long.class)
+            .single()).isEqualTo(1);
+  }
+
+  @Test
   void stockMutationAndOutboxRollBackTogether() throws Exception {
     String id = createProduct(10);
-    var tx = app.getBean(com.roshka.inventory.configuration.RequestTransactions.class);
-    var service = app.getBean(com.roshka.inventory.application.port.in.Inventory.class);
+    var tx = app.getBean(com.roshka.platform.web.RequestTransactions.class);
+    var service =
+        app.getBean(com.roshka.inventory.application.port.in.RestockProductUseCase.class);
     UUID movement = UUID.randomUUID();
     assertThatThrownBy(
             () ->
@@ -102,7 +172,7 @@ class ServiceIT {
                     () -> {
                       service.restock(
                           UUID.fromString(id),
-                          new com.roshka.inventory.application.port.in.Inventory.Restock(
+                          new com.roshka.inventory.application.port.in.RestockProductUseCase.Command(
                               movement, 5, "ROLLBACK"));
                       throw new IllegalStateException("INJECTED_BEFORE_COMMIT");
                     })).isInstanceOf(IllegalStateException.class);
@@ -246,7 +316,7 @@ class ServiceIT {
             key,
             "{\"sku\":\"" + key + "\",\"name\":\"Test\",\"initialStock\":" + quantity + "}");
     assertThat(response.statusCode()).isEqualTo(201);
-    return JSON.readTree(response.body()).get("productId").asText();
+    return JSON.readTree(response.body()).get("productId").stringValue();
   }
 
   static JsonNode stock(String id) throws Exception {
@@ -324,14 +394,14 @@ class ServiceIT {
     var created = request("POST", "/products", key, body);
     assertThat(created.statusCode()).isEqualTo(201);
     assertThat(request("POST", "/products", key, body).body()).isEqualTo(created.body());
-    String id = JSON.readTree(created.body()).get("productId").asText();
+    String id = JSON.readTree(created.body()).get("productId").stringValue();
     String movement =
         "{\"movementId\":\"" + UUID.randomUUID() + "\",\"quantity\":5,\"reason\":\"DELIVERY\"}";
     var restock =
-        request("POST", "/products/" + id + "/restocks", UUID.randomUUID().toString(), movement);
+        request("POST", "/products/" + id + "/restock", UUID.randomUUID().toString(), movement);
     assertThat(restock.statusCode()).isEqualTo(201);
     assertThat(
-            request("POST", "/products/" + id + "/restocks", UUID.randomUUID().toString(), movement).body())
+            request("POST", "/products/" + id + "/restock", UUID.randomUUID().toString(), movement).body())
         .isEqualTo(restock.body());
     var stale =
         request(

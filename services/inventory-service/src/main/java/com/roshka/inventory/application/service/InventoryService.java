@@ -1,120 +1,142 @@
 package com.roshka.inventory.application.service;
 
-import static com.roshka.inventory.domain.BusinessException.Kind.*;
-
-import com.roshka.inventory.application.port.in.Inventory;
-import com.roshka.inventory.application.port.out.*;
-import com.roshka.inventory.domain.*;
+import com.roshka.inventory.application.model.ProductSnapshot;
+import com.roshka.inventory.application.model.StockChange;
+import com.roshka.inventory.application.port.in.CreateProductUseCase;
+import com.roshka.inventory.application.port.in.FindInventoryQuery;
+import com.roshka.inventory.application.port.in.RecountStockUseCase;
+import com.roshka.inventory.application.port.in.RestockProductUseCase;
+import com.roshka.inventory.application.port.out.EventPublisherPort;
+import com.roshka.inventory.application.port.out.InventoryStore;
+import com.roshka.inventory.domain.BusinessException;
+import com.roshka.inventory.domain.Product;
+import com.roshka.inventory.domain.Stock;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-public class InventoryService implements Inventory {
+public class InventoryService
+    implements CreateProductUseCase, FindInventoryQuery, RestockProductUseCase, RecountStockUseCase {
   private final InventoryStore store;
-  private final Events events;
+  private final EventPublisherPort events;
   private final Clock clock;
   private final Supplier<UUID> ids;
 
-  public InventoryService(InventoryStore store, Events events, Clock clock, Supplier<UUID> ids) {
+  public InventoryService(
+      InventoryStore store, EventPublisherPort events, Clock clock, Supplier<UUID> ids) {
     this.store = store;
     this.events = events;
     this.clock = clock;
     this.ids = ids;
   }
 
-  public View create(Create c) {
-    store.lockIdentity("sku:" + c.sku());
-    if (store.skuExists(c.sku())) throw new BusinessException(CONFLICT, "SKU_EXISTS");
-    Product p =
+  @Override
+  public ProductSnapshot create(CreateProductUseCase.Command command) {
+    store.lockIdentity("sku:" + command.sku());
+    if (store.skuExists(command.sku())) {
+      throw BusinessException.conflict("SKU_EXISTS");
+    }
+
+    Product product =
         new Product(
-            ids.get(), c.sku(), c.name(), new Stock(c.initialStock(), 0, 1), clock.instant());
-    store.insert(p);
-    Change change = change(p, null, ids.get(), c.initialStock(), "INITIAL");
-    store.movement("CREATE", null, p, change);
-    events.append("ProductStockCreated", p.productId(), 1, view(p));
-    return view(p);
+            ids.get(),
+            command.sku(),
+            command.name(),
+            new Stock(command.initialStock(), 0, 1),
+            clock.instant());
+    store.insert(product);
+
+    StockChange change =
+        change(product, null, ids.get(), command.initialStock(), "INITIAL");
+    store.movement("CREATE", null, product, change);
+    events.publish("ProductStockCreated", product.productId(), 1, snapshot(product));
+    return snapshot(product);
   }
 
-  public View get(UUID id) {
-    return view(product(id, false));
+  @Override
+  public ProductSnapshot findById(UUID productId) {
+    return snapshot(product(productId, false));
   }
 
-  public List<View> list() {
-    return store.findAll().stream().map(InventoryService::view).toList();
+  @Override
+  public List<ProductSnapshot> findAll() {
+    return store.findAll().stream().map(InventoryService::snapshot).toList();
   }
 
-  public Change restock(UUID id, Restock c) {
-    store.lockIdentity("movement:" + c.movementId());
-    var existing = store.movement(c.movementId());
+  @Override
+  public StockChange restock(UUID productId, RestockProductUseCase.Command command) {
+    store.lockIdentity("movement:" + command.movementId());
+    var existing = store.movement(command.movementId());
     if (existing.isPresent()) {
-      Change value = existing.get();
-      if (!value.productId().equals(id)
-          || value.quantity() != c.quantity()
-          || !value.reason().equals(c.reason()))
-        throw new BusinessException(CONFLICT, "MOVEMENT_CONFLICT");
+      StockChange value = existing.get();
+      if (!value.productId().equals(productId)
+          || value.quantity() != command.quantity()
+          || !value.reason().equals(command.reason())) {
+        throw BusinessException.conflict("MOVEMENT_CONFLICT");
+      }
       return value;
     }
-    Product before = product(id, true);
-    Stock next;
-    try {
-      next = before.stock().restock(c.quantity());
-    } catch (IllegalArgumentException e) {
-      throw new BusinessException(INVALID, e.getMessage());
-    }
+
+    Product before = product(productId, true);
+    Stock next = before.stock().restock(command.quantity());
     Product after = before.withStock(next, clock.instant());
-    Change result = change(after, before, c.movementId(), c.quantity(), c.reason());
+    StockChange result =
+        change(after, before, command.movementId(), command.quantity(), command.reason());
     store.update(after);
     store.movement("RESTOCK", before, after, result);
-    events.append("ProductStockReplenished", id, next.version(), result);
+    events.publish("ProductStockReplenished", productId, next.version(), result);
     return result;
   }
 
-  public Change recount(Recount c) {
-    Product before = product(c.productId(), true);
-    Stock next;
-    try {
-      next = before.stock().recount(c.stock(), c.expectedVersion());
-    } catch (IllegalArgumentException e) {
-      throw new BusinessException(CONFLICT, e.getMessage());
-    }
+  @Override
+  public StockChange recount(RecountStockUseCase.Command command) {
+    Product before = product(command.productId(), true);
+    Stock next = before.stock().recount(command.stock(), command.expectedVersion());
     Product after = before.withStock(next, clock.instant());
-    Change result =
-        change(after, before, ids.get(), c.stock() - before.stock().onHand(), c.reason());
+    StockChange result =
+        change(
+            after,
+            before,
+            ids.get(),
+            command.stock() - before.stock().onHand(),
+            command.reason());
     if (!next.equals(before.stock())) {
       store.update(after);
       store.movement("RECOUNT", before, after, result);
-      events.append("ProductStockUpdated", after.productId(), next.version(), result);
+      events.publish("ProductStockUpdated", after.productId(), next.version(), result);
     }
     return result;
   }
 
   private Product product(UUID id, boolean lock) {
-    return store.find(id, lock).orElseThrow(() -> new BusinessException(NOT_FOUND, "PRODUCT_NOT_FOUND"));
+    return store.find(id, lock)
+        .orElseThrow(() -> BusinessException.notFound("PRODUCT_NOT_FOUND"));
   }
 
-  public static View view(Product p) {
-    return new View(
-        p.productId(),
-        p.sku(),
-        p.name(),
-        p.stock().onHand(),
-        p.stock().reserved(),
-        p.stock().available(),
-        p.stock().version(),
-        p.updatedAt());
+  public static ProductSnapshot snapshot(Product product) {
+    return new ProductSnapshot(
+        product.productId(),
+        product.sku(),
+        product.name(),
+        product.stock().onHand(),
+        product.stock().reserved(),
+        product.stock().available(),
+        product.stock().version(),
+        product.updatedAt());
   }
 
-  private Change change(Product p, Product before, UUID movement, long quantity, String reason) {
-    return new Change(
-        p.productId(),
-        movement,
+  private StockChange change(
+      Product product, Product before, UUID movementId, long quantity, String reason) {
+    return new StockChange(
+        product.productId(),
+        movementId,
         quantity,
         before == null ? 0 : before.stock().onHand(),
-        p.stock().onHand(),
-        p.stock().reserved(),
-        p.stock().available(),
-        p.stock().version(),
+        product.stock().onHand(),
+        product.stock().reserved(),
+        product.stock().available(),
+        product.stock().version(),
         reason);
   }
 }

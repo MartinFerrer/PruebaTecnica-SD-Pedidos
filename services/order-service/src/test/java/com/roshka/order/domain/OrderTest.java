@@ -20,10 +20,10 @@ class OrderTest {
     assertThatThrownBy(() -> new Order.Item(id, 0)).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new Order.Item(id, 1000000001)).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new Order(id, List.of(), OrderStatus.PENDING, 1, null, 0, List.of()))
-        .isInstanceOf(BusinessException.class);
+        .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(
             () -> new Order(id, List.of(item, item), OrderStatus.PENDING, 1, null, 0, List.of()))
-        .isInstanceOf(BusinessException.class);
+        .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(
             () ->
                 new Order(
@@ -33,7 +33,7 @@ class OrderTest {
                     1,
                     null,
                     0,
-                    List.of())).isInstanceOf(BusinessException.class);
+                    List.of())).isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

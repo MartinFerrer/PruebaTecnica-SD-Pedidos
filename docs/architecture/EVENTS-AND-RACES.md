@@ -89,7 +89,7 @@ Payload del evento:
 }
 ```
 
-## Reposición de un producto existente - POST /products/{productId}/restocks
+## Reposición de un producto existente - POST /products/{productId}/restock
 
 Suma unidades recibidas; no requiere consultar el saldo para calcular un nuevo total. Headers: `Idempotency-Key` obligatorio. El cliente genera una vez el `movementId` UUID de esta recepción y lo conserva en todos sus reintentos, incluso si cambia la clave HTTP.
 
@@ -119,13 +119,13 @@ Respuesta `201 Created`, suponiendo 20 unidades físicas, 4 reservadas y versió
 
 ```mermaid
 sequenceDiagram
-    title Reposición idempotente - POST /products/{productId}/restocks
+    title Reposición idempotente - POST /products/{productId}/restock
     participant C as Cliente
     participant I as Inventory Service
     participant ID as Inventory DB
     participant B as RabbitMQ
 
-    C->>I: POST restocks {movementId, quantity, reason}
+    C->>I: POST restock {movementId, quantity, reason}
     I->>ID: reclamar clave HTTP / resolver replay de movimiento
     I->>ID: lock product + validar movimiento único y cantidad
     I->>ID: onHand += quantity, version++ + movement + outbox + respuesta
@@ -426,6 +426,8 @@ Los resultados tardíos nunca reabren `CANCELLED` ni cambian `inventoryCancellat
 
 Para `StockReleased`, los outcomes son `RELEASED`, `NOT_RESERVED` y `CANCELLED_BEFORE_RESERVATION`. `requestOrderVersion` referencia el evento Order que causó el resultado. El `aggregateVersion` de Reservation aumenta por sus propias transiciones. Order valida origen, esquema, pedido, solicitud y transición esperada; no necesita un orden global ni comparar números de agregados distintos. Un evento incompatible con ese protocolo no se aplica silenciosamente: se clasifica para DLQ/diagnóstico. Un resultado válido pero tardío se registra en inbox como ignorado.
 
+Si la cancelación se originó en un pedido ya `CONFIRMED` (`requestOrderVersion >= 3`), Order solo acepta outcome `RELEASED` y exige que `releasedItems` coincida exactamente con las líneas del pedido. Para una cancelación aceptada mientras el pedido aún estaba `PENDING`, cualquiera de los tres outcomes puede ser legítimo por la carrera entre reserva y cancelación, pero `RELEASED` siempre lleva todos los ítems y los otros outcomes llevan lista vacía.
+
 ## ACK, publisher confirm y ausencia de two-phase commit
 
 No se usa 2PC entre PostgreSQL y RabbitMQ. ACK y publisher confirm son confirmaciones locales del protocolo AMQP, no un commit coordinado entre recursos.
@@ -455,7 +457,7 @@ Esta combinación ofrece entrega at-least-once y efectos de negocio idempotentes
 | `POST /orders` | `Idempotency-Key` + operación | Restricción única y replay | Un `orderId` y un evento lógico |
 | cancelar pedido | `Idempotency-Key` + operación | Restricción única | `CANCELLED` terminal |
 | `POST /products` | `Idempotency-Key` + operación | Restricción única | SKU único y creación única |
-| `POST /products/{id}/restocks` | Clave HTTP y `movementId` estable | Unicidad persistente del movimiento | Suma exactamente una vez por movimiento |
+| `POST /products/{id}/restock` | Clave HTTP y `movementId` estable | Unicidad persistente del movimiento | Suma exactamente una vez por movimiento |
 | `PUT /products` | `Idempotency-Key` + operación | Replay anterior a revalidación | `expectedVersion` bajo lock y `stock >= reserved` |
 | mensaje AMQP | `consumer_name` + `eventId` | Inbox única | `aggregateVersion` + estado |
 | publicación outbox | `eventId` estable | Consumidor idempotente | Efecto protegido por agregado |

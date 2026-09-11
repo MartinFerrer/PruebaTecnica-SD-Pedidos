@@ -23,7 +23,13 @@ class OrderStatusTest {
 
   @Test
   void cannotCancelRejectedAndResultsDoNotChangeTerminalState() {
-    assertThatThrownBy(() -> OrderStatus.REJECTED.cancel()).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> OrderStatus.REJECTED.cancel())
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            failure -> {
+              assertThat(failure.kind()).isEqualTo(BusinessException.Kind.CONFLICT);
+              assertThat(failure.code()).isEqualTo("ORDER_REJECTED");
+            });
     assertThat(OrderStatus.CONFIRMED.reservationResult(true)).isEqualTo(OrderStatus.CONFIRMED);
     assertThat(OrderStatus.REJECTED.reservationResult(false)).isEqualTo(OrderStatus.REJECTED);
   }

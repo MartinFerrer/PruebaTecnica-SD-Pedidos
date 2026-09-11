@@ -1,6 +1,6 @@
 package com.roshka.inventory.application.port.out;
 
-import com.roshka.inventory.application.port.in.Inventory.Change;
+import com.roshka.inventory.application.model.StockChange;
 import com.roshka.inventory.domain.Product;
 import java.util.Optional;
 import java.util.List;
@@ -19,7 +19,7 @@ public interface InventoryStore {
 
   void update(Product product);
 
-  Optional<Change> movement(UUID movementId);
+  Optional<StockChange> movement(UUID movementId);
 
-  void movement(String operation, Product before, Product after, Change result);
+  void movement(String operation, Product before, Product after, StockChange result);
 }

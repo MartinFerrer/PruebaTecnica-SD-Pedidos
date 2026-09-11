@@ -31,7 +31,7 @@ Detalle de persistencia de la primera implementación: Inventory almacena los í
 
 - Un pedido puede contener uno o más productos y la reserva es todo-o-nada.
 - `POST /products` registra un producto con stock físico inicial.
-- `POST /products/{productId}/restocks` agrega unidades a un producto existente mediante un movimiento único.
+- `POST /products/{productId}/restock` agrega unidades a un producto existente mediante un movimiento único.
 - `PUT /products` fija el stock físico absoluto de un producto existente con control de versión; no suma un delta.
 - Un rechazo contiene todos los ítems sin stock suficiente; no se reservan los demás.
 - No hay pagos, clientes, autenticación ni despacho en el alcance inicial.
@@ -68,7 +68,7 @@ flowchart TB
 
     OBS["Observabilidad (Opcional)<br/>Collector · Prometheus · Tempo · Loki · Grafana"]
     
-    Client -->|REST /products<br/>POST · restocks · PUT · GET| IS
+    Client -->|REST /products<br/>POST · restock · PUT · GET| IS
     Client -->|REST /orders<br/>POST · GET · cancel| OS
     OS -->|eventos →<br/>OrderCreated · OrderCancelled| RMQ
     RMQ -->|eventos →<br/>OrderCreated · OrderCancelled| IS
@@ -151,7 +151,7 @@ No consulta tablas de Inventory ni bloquea su base.
 Es dueño de `Product`, `Stock` y `Reservation`. Expone:
 
 - `POST /products`: requiere `Idempotency-Key`, crea el producto con stock inicial.
-- `POST /products/{productId}/restocks`: requiere `Idempotency-Key`, `movementId` estable y cantidad positiva; suma unidades atómicamente una sola vez por movimiento.
+- `POST /products/{productId}/restock`: requiere `Idempotency-Key`, `movementId` estable y cantidad positiva; suma unidades atómicamente una sola vez por movimiento.
 - `PUT /products`: requiere `Idempotency-Key`, `productId`, `stock` absoluto y `expectedVersion`. Rechaza con `409` una versión obsoleta o un valor menor que las unidades reservadas.
 - `GET /products`: lista todos los productos con `onHand`, `reserved`, `available`, `version` y la marca temporal de actualización.
 - `GET /products/{productId}/stock`: devuelve `onHand`, `reserved`, `available`, `version` y la marca temporal de actualización.
@@ -190,19 +190,32 @@ Se usará organización por capacidad, con dependencias siempre hacia el dominio
   configuration/        ensamblado Spring y configuración técnica
 ```
 
-Reglas:
+#### Reglas:
 
 - `domain` es Java puro y no conoce Spring, JPA, HTTP, RabbitMQ ni JSON.
 - `application` conoce el dominio y puertos; no conoce adaptadores.
 - Los DTO REST, contratos AMQP y entidades JPA no se reutilizan como objetos de dominio.
-- Cada microservicio compila y se despliega solo.
+- Cada microservicio se empaqueta y despliega como aplicación independiente; ninguno depende del código del otro.
 - No habrá un módulo Java de modelos compartidos. Los contratos compartidos son OpenAPI/AsyncAPI, no clases de negocio.
+- `shared-library` contiene únicamente infraestructura transversal sin estado de negocio: topología RabbitMQ, publisher confirms, escritura/relay de outbox, mecánica transaccional de consumidores, ejecución técnica de idempotencia HTTP, `ErrorResponse`, traducción HTTP común, codec JSON y contexto/filtro de correlación. Los servicios pueden depender de este módulo técnico; ArchUnit impide que él dependa de Order o Inventory.
+- Los puertos de entrada se nombran por caso de uso (`CreateOrderUseCase`, `FindOrdersQuery`, `RestockProductUseCase`, etc.) y los de salida por capacidad requerida (`OrderStore`, `InventoryStore`, `EventPublisherPort`). Los DTO REST, comandos/read models de aplicación, dominio y entidades/representaciones de persistencia son tipos distintos y se traducen mediante mapeadores explícitos.
 - Un decorador de los puertos de entrada, ensamblado en `configuration`, usa Spring TransactionTemplate para ejecutar el caso de uso. El núcleo no lleva anotaciones Spring. Inbox/idempotencia, negocio, movimientos y outbox comparten transacción local; ningún repositorio hace commits independientes.
 - En Order, JpaTransactionManager y JDBC usan el mismo DataSource y conexión asociada a la transacción. En Inventory, JdbcTransactionManager coordina todo el acceso. Una prueba de rollback verifica que nunca se persista medio caso de uso.
 
+#### Decisiones de manejo de excepciónes
+Cada servicio conserva su propia `BusinessException`, limitada a fallos de negocio que requieren código estable y clasificación `NOT_FOUND` o `CONFLICT`; no contiene status HTTP ni se comparte entre bounded contexts. Las precondiciones y objetos inválidos usan `IllegalArgumentException`; estados técnicos imposibles usan `IllegalStateException`. `RequestTransactions` recibe desde la configuración de cada servicio una función de traducción, por lo que la infraestructura compartida no conoce excepciones de Order o Inventory.
+- IllegalArgumentException: forma inválida de un value object/comando, cantidad fuera de rango,
+  envelope o evento incompatible. En mensajería se clasifica como fallo permanente.
+- IllegalStateException: ausencia de una garantía del runtime o estado persistente imposible, por
+  ejemplo un producto faltante durante la liberación de una reserva ya confirmada.
+- BusinessException: recurso no encontrado o conflicto de negocio que debe conservar un código
+  estable para REST, idempotencia y diagnóstico, como ORDER_REJECTED o STOCK_VERSION_CONFLICT.
+- Excepciones de infraestructura, como DataAccessException, no se envuelven en excepciones de
+  dominio: provocan rollback/retry y se traducen en el borde HTTP cuando corresponde.
+
 ### Estructura mínima de implementación
 
-Dos módulos Maven ejecutables, uno por servicio; `domain`, `application`, `adapter` y `configuration` son paquetes, no cuatro módulos adicionales. ArchUnit impone sus dependencias. Un caso de uso por operación; repositorios específicos por agregado, sin repositorio CRUD genérico ni una clase por cada estado. Las transiciones se expresan en métodos del dominio y tablas de pruebas. No hace falta una biblioteca de máquinas de estados.
+Dos módulos Maven ejecutables, uno por servicio, y un módulo técnico no ejecutable `shared-library`; `domain`, `application`, `adapter` y `configuration` son paquetes, no cuatro módulos adicionales. ArchUnit impone sus dependencias. Un caso de uso por operación; repositorios específicos por agregado, sin repositorio CRUD genérico ni una clase por cada estado. Las transiciones se expresan en métodos del dominio y tablas de pruebas. No hace falta una biblioteca de máquinas de estados.
 
 La transacción multítem pertenece al caso de uso de Inventory y puede coordinar varios productos; cada producto protege su cantidad y la reserva protege su ciclo de vida. El aggregate pattern no implica una transacción distribuida por producto.
 
@@ -450,8 +463,8 @@ La responsabilidad y justificación de cada contenedor se desarrolla en `docs/op
   AGENTS.md
   README.md
   pom.xml
-  pom.xml
   services/
+    shared-library/
     order-service/
     inventory-service/
   contracts/

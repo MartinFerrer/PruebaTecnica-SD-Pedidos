@@ -2,4 +2,6 @@
 !pom.xml
 !services
 !services/**
+!contracts
+!contracts/**
 **/target

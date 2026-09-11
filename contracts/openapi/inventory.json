@@ -83,11 +83,21 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": true,
+                  "additionalProperties": false,
                   "properties": {
                     "productId": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "sku": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
                     },
                     "onHand": {
                       "type": "integer",
@@ -115,10 +125,13 @@
                   },
                   "required": [
                     "productId",
+                    "sku",
+                    "name",
                     "onHand",
                     "reserved",
                     "available",
-                    "version"
+                    "version",
+                    "updatedAt"
                   ]
                 }
               }
@@ -199,11 +212,25 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": true,
+                  "additionalProperties": false,
                   "properties": {
                     "productId": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "movementId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "quantity": {
+                      "type": "integer",
+                      "minimum": -1000000000,
+                      "maximum": 1000000000
+                    },
+                    "previousOnHand": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000000
                     },
                     "onHand": {
                       "type": "integer",
@@ -224,17 +251,22 @@
                       "type": "integer",
                       "minimum": 1
                     },
-                    "updatedAt": {
+                    "reason": {
                       "type": "string",
-                      "format": "date-time"
+                      "minLength": 1,
+                      "maxLength": 200
                     }
                   },
                   "required": [
                     "productId",
+                    "movementId",
+                    "quantity",
+                    "previousOnHand",
                     "onHand",
                     "reserved",
                     "available",
-                    "version"
+                    "version",
+                    "reason"
                   ]
                 }
               }
@@ -258,7 +290,7 @@
         }
       }
     },
-    "/products/{productId}/restocks": {
+    "/products/{productId}/restock": {
       "post": {
         "operationId": "restockProduct",
         "parameters": [
@@ -321,11 +353,25 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": true,
+                  "additionalProperties": false,
                   "properties": {
                     "productId": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "movementId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "quantity": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1000000000
+                    },
+                    "previousOnHand": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000000
                     },
                     "onHand": {
                       "type": "integer",
@@ -346,17 +392,22 @@
                       "type": "integer",
                       "minimum": 1
                     },
-                    "updatedAt": {
+                    "reason": {
                       "type": "string",
-                      "format": "date-time"
+                      "minLength": 1,
+                      "maxLength": 200
                     }
                   },
                   "required": [
                     "productId",
+                    "movementId",
+                    "quantity",
+                    "previousOnHand",
                     "onHand",
                     "reserved",
                     "available",
-                    "version"
+                    "version",
+                    "reason"
                   ]
                 }
               }
@@ -436,7 +487,8 @@
                     "onHand",
                     "reserved",
                     "available",
-                    "version"
+                    "version",
+                    "updatedAt"
                   ]
                 }
               }

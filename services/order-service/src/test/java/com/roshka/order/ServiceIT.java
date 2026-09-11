@@ -26,6 +26,66 @@ class ServiceIT {
     assertThat(orders.toString()).contains(first, second);
   }
 
+  @Test
+  void mismatchedReservationResultCannotConfirmOrder() throws Exception {
+    String productId = UUID.randomUUID().toString();
+    var created = request(
+        "POST",
+        "/orders",
+        UUID.randomUUID().toString(),
+        "{\"items\":[{\"productId\":\"" + productId + "\",\"quantity\":2}]}");
+    String orderId = JSON.readTree(created.body()).get("orderId").stringValue();
+
+    send(
+        "StockReserved",
+        orderId,
+        1,
+        java.util.Map.of(
+            "orderId", orderId,
+            "requestOrderVersion", 1,
+            "items", java.util.List.of(
+                java.util.Map.of("productId", UUID.randomUUID().toString(), "quantity", 2))));
+
+    var rabbit = app.getBean(org.springframework.amqp.rabbit.core.RabbitTemplate.class);
+    org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(
+        () -> assertThat(rabbit.receive("order.dlq")).isNotNull());
+    var current = request("GET", "/orders/" + orderId, "read", null);
+    assertThat(JSON.readTree(current.body()).get("status").stringValue()).isEqualTo("PENDING");
+  }
+
+  @Test
+  void mismatchedReleaseCannotCompleteInventoryCancellation() throws Exception {
+    String productId = UUID.randomUUID().toString();
+    var created = request(
+        "POST",
+        "/orders",
+        UUID.randomUUID().toString(),
+        "{\"items\":[{\"productId\":\"" + productId + "\",\"quantity\":2}]}");
+    String orderId = JSON.readTree(created.body()).get("orderId").stringValue();
+    var cancelled = request(
+        "POST", "/orders/" + orderId + "/cancel", UUID.randomUUID().toString(), "{}");
+    assertThat(cancelled.statusCode()).isEqualTo(202);
+
+    send(
+        "StockReleased",
+        orderId,
+        2,
+        java.util.Map.of(
+            "orderId", orderId,
+            "requestOrderVersion", 2,
+            "outcome", "RELEASED",
+            "releasedItems", java.util.List.of(
+                java.util.Map.of("productId", UUID.randomUUID().toString(), "quantity", 2))));
+
+    var rabbit = app.getBean(org.springframework.amqp.rabbit.core.RabbitTemplate.class);
+    org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(
+        () -> assertThat(rabbit.receive("order.dlq")).isNotNull());
+    var current = request("GET", "/orders/" + orderId, "read", null);
+    var order = JSON.readTree(current.body());
+    assertThat(order.get("status").stringValue()).isEqualTo("CANCELLED");
+    assertThat(order.get("inventoryCancellationStatus").stringValue()).isEqualTo("PENDING");
+  }
+
   static final PostgreSQLContainer DB = new PostgreSQLContainer("postgres:18.3-alpine");
   static final RabbitMQContainer BROKER = new RabbitMQContainer("rabbitmq:4.2.3-management-alpine");
   static ConfigurableApplicationContext app;
@@ -78,15 +138,16 @@ class ServiceIT {
     var created = request("POST", "/orders", key, body);
     assertThat(created.statusCode()).isEqualTo(202);
     assertThat(request("POST", "/orders", key, body).body()).isEqualTo(created.body());
-    String id = JSON.readTree(created.body()).get("orderId").asText();
+    String id = JSON.readTree(created.body()).get("orderId").stringValue();
     var cancelled = request("POST", "/orders/" + id + "/cancel", key, "{}");
     assertThat(cancelled.statusCode()).isEqualTo(202);
-    assertThat(JSON.readTree(cancelled.body()).get("status").asText()).isEqualTo("CANCELLED");
+    assertThat(JSON.readTree(cancelled.body()).get("status").stringValue()).isEqualTo("CANCELLED");
     assertThat(request("POST", "/orders/" + id + "/cancel", key, "{}").body()).isEqualTo(cancelled.body());
     assertThat(
             request("POST", "/orders/" + id + "/cancel", UUID.randomUUID().toString(), "{}").statusCode())
         .isEqualTo(200);
-    assertThat(JSON.readTree(created.body()).get("statusUrl").asText()).isEqualTo("/orders/" + id);
+    assertThat(JSON.readTree(created.body()).get("statusUrl").stringValue())
+        .isEqualTo("/orders/" + id);
     assertThat(
             request(
                     "POST",
@@ -101,6 +162,26 @@ class ServiceIT {
     var response = request("POST", "/orders", UUID.randomUUID().toString(),
         "{\"items\":[{\"productId\":\"" + id + "\",\"quantity\":1}]}");
     assertThat(response.statusCode()).isEqualTo(202);
-    return JSON.readTree(response.body()).get("orderId").asText();
+    return JSON.readTree(response.body()).get("orderId").stringValue();
+  }
+
+  static void send(String type, String orderId, long aggregateVersion, Object payload) {
+    String eventId = UUID.randomUUID().toString();
+    String body = JSON.writeValueAsString(
+        java.util.Map.ofEntries(
+            java.util.Map.entry("eventId", eventId),
+            java.util.Map.entry("eventType", type),
+            java.util.Map.entry("schemaVersion", 1),
+            java.util.Map.entry("aggregateId", orderId),
+            java.util.Map.entry("aggregateVersion", aggregateVersion),
+            java.util.Map.entry("occurredAt", java.time.Instant.now().toString()),
+            java.util.Map.entry("producer", "inventory-service"),
+            java.util.Map.entry("correlationId", orderId),
+            java.util.Map.entry("causationId", eventId),
+            java.util.Map.entry(
+                "traceparent", "00-11111111111111111111111111111111-1111111111111111-01"),
+            java.util.Map.entry("payload", payload)));
+    app.getBean(org.springframework.amqp.rabbit.core.RabbitTemplate.class)
+        .convertAndSend("", "order.in", body);
   }
 }

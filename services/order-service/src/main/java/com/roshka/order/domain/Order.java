@@ -25,17 +25,13 @@ public record Order(
     if (items.isEmpty()
         || items.size() > 100
         || items.stream().map(Item::productId).distinct().count() != items.size())
-      throw new BusinessException(BusinessException.Kind.INVALID, "INVALID_ITEMS");
+      throw new IllegalArgumentException("INVALID_ITEMS");
   }
 
   public Order cancel() {
     if (status == OrderStatus.CANCELLED) return this;
-    try {
-      return new Order(
-          orderId, items, status.cancel(), version + 1, "PENDING", version + 1, unavailableItems);
-    } catch (IllegalArgumentException e) {
-      throw new BusinessException(BusinessException.Kind.CONFLICT, e.getMessage());
-    }
+    return new Order(
+        orderId, items, status.cancel(), version + 1, "PENDING", version + 1, unavailableItems);
   }
 
   public Order result(boolean reserved, List<Shortage> shortages) {
@@ -46,7 +42,7 @@ public record Order(
 
   public Order released(long requestVersion) {
     if (status != OrderStatus.CANCELLED || cancellationVersion != requestVersion)
-      throw new BusinessException(BusinessException.Kind.CONFLICT, "UNEXPECTED_RELEASE");
+      throw BusinessException.conflict("UNEXPECTED_RELEASE");
     return "COMPLETED".equals(inventoryCancellationStatus)
         ? this
         : new Order(

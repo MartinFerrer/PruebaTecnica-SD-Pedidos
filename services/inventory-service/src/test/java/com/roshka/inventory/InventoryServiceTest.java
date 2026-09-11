@@ -2,7 +2,10 @@ package com.roshka.inventory;
 
 import static org.assertj.core.api.Assertions.*;
 
-import com.roshka.inventory.application.port.in.Inventory;
+import com.roshka.inventory.application.model.StockChange;
+import com.roshka.inventory.application.port.in.CreateProductUseCase;
+import com.roshka.inventory.application.port.in.RecountStockUseCase;
+import com.roshka.inventory.application.port.in.RestockProductUseCase;
 import com.roshka.inventory.application.port.out.InventoryStore;
 import com.roshka.inventory.application.service.InventoryService;
 import com.roshka.inventory.domain.*;
@@ -12,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 class InventoryServiceTest {
   final Map<UUID, Product> products = new HashMap<>();
-  final Map<UUID, Inventory.Change> movements = new HashMap<>();
+  final Map<UUID, StockChange> movements = new HashMap<>();
   final List<String> events = new ArrayList<>();
   final InventoryStore store =
       new InventoryStore() {
@@ -38,11 +41,11 @@ class InventoryServiceTest {
           products.put(p.productId(), p);
         }
 
-        public Optional<Inventory.Change> movement(UUID id) {
+        public Optional<StockChange> movement(UUID id) {
           return Optional.ofNullable(movements.get(id));
         }
 
-        public void movement(String op, Product before, Product after, Inventory.Change result) {
+        public void movement(String op, Product before, Product after, StockChange result) {
           movements.put(result.movementId(), result);
         }
       };
@@ -55,36 +58,43 @@ class InventoryServiceTest {
 
   @Test
   void restockIdentityAndRecountProtectStock() {
-    var p = service.create(new Inventory.Create("SKU", "Test", 20));
+    var p = service.create(new CreateProductUseCase.Command("SKU", "Test", 20));
     UUID movement = UUID.randomUUID();
-    var command = new Inventory.Restock(movement, 5, "DELIVERY");
+    var command = new RestockProductUseCase.Command(movement, 5, "DELIVERY");
     var result = service.restock(p.productId(), command);
     assertThat(service.restock(p.productId(), command)).isEqualTo(result);
     for (var mismatch :
         List.of(
-            new Inventory.Restock(movement, 6, "DELIVERY"),
-            new Inventory.Restock(movement, 5, "OTHER"))) {
+            new RestockProductUseCase.Command(movement, 6, "DELIVERY"),
+            new RestockProductUseCase.Command(movement, 5, "OTHER"))) {
       assertThatThrownBy(() -> service.restock(p.productId(), mismatch)).isInstanceOf(BusinessException.class);
     }
     assertThatThrownBy(() -> service.restock(UUID.randomUUID(), command)).isInstanceOf(BusinessException.class);
-    assertThatThrownBy(() -> service.recount(new Inventory.Recount(p.productId(), 20, 1, "COUNT")))
+    assertThatThrownBy(
+            () ->
+                service.recount(
+                    new RecountStockUseCase.Command(p.productId(), 20, 1, "COUNT")))
         .isInstanceOf(BusinessException.class);
-    service.recount(new Inventory.Recount(p.productId(), 30, 2, "COUNT"));
-    service.recount(new Inventory.Recount(p.productId(), 30, 3, "COUNT"));
-    assertThat(service.get(p.productId()).onHand()).isEqualTo(30);
+    service.recount(new RecountStockUseCase.Command(p.productId(), 30, 2, "COUNT"));
+    service.recount(new RecountStockUseCase.Command(p.productId(), 30, 3, "COUNT"));
+    assertThat(service.findById(p.productId()).onHand()).isEqualTo(30);
     assertThat(events).containsExactly("ProductStockCreated", "ProductStockReplenished", "ProductStockUpdated");
   }
 
   @Test
   void duplicateSkuMissingProductAndOverflowAreRejected() {
-    var product = service.create(new Inventory.Create("SKU", "Test", 1000000000));
-    assertThatThrownBy(() -> service.create(new Inventory.Create("SKU", "Another", 0)))
+    var product =
+        service.create(new CreateProductUseCase.Command("SKU", "Test", 1_000_000_000));
+    assertThatThrownBy(
+            () -> service.create(new CreateProductUseCase.Command("SKU", "Another", 0)))
         .isInstanceOf(BusinessException.class);
-    assertThatThrownBy(() -> service.get(UUID.randomUUID())).isInstanceOf(BusinessException.class);
+    assertThatThrownBy(() -> service.findById(UUID.randomUUID()))
+        .isInstanceOf(BusinessException.class);
     assertThatThrownBy(
             () ->
                 service.restock(
-                    product.productId(), new Inventory.Restock(UUID.randomUUID(), 1, "TEST")))
-        .isInstanceOf(BusinessException.class);
+                    product.productId(),
+                    new RestockProductUseCase.Command(UUID.randomUUID(), 1, "TEST")))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 }

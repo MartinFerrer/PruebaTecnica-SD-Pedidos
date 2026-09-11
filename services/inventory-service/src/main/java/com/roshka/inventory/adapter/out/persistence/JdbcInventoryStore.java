@@ -1,6 +1,6 @@
 package com.roshka.inventory.adapter.out.persistence;
 
-import com.roshka.inventory.application.port.in.Inventory.Change;
+import com.roshka.inventory.application.model.StockChange;
 import com.roshka.inventory.application.port.out.InventoryStore;
 import com.roshka.inventory.domain.*;
 import java.util.*;
@@ -10,11 +10,16 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class JdbcInventoryStore implements InventoryStore {
   private final JdbcClient db;
-  private final JsonCodec json;
+  private final ProductRowMapper products;
+  private final StockMovementPersistenceMapper movements;
 
-  public JdbcInventoryStore(JdbcClient db, JsonCodec json) {
+  public JdbcInventoryStore(
+      JdbcClient db,
+      ProductRowMapper products,
+      StockMovementPersistenceMapper movements) {
     this.db = db;
-    this.json = json;
+    this.products = products;
+    this.movements = movements;
   }
 
   public void lockIdentity(String value) {
@@ -27,29 +32,16 @@ public class JdbcInventoryStore implements InventoryStore {
   }
 
   public Optional<Product> find(UUID id, boolean lock) {
-    return db.sql("SELECT * FROM products WHERE product_id=:id" + (lock ? " FOR UPDATE" : "")).param("id", id).query(
-            (rs, n) ->
-                new Product(
-                    rs.getObject("product_id", UUID.class),
-                    rs.getString("sku"),
-                    rs.getString("name"),
-                    new Stock(rs.getLong("on_hand"), rs.getLong("reserved"), rs.getLong("version")),
-                    rs.getTimestamp("updated_at").toInstant())).optional();
+    return db.sql("SELECT * FROM products WHERE product_id=:id" + (lock ? " FOR UPDATE" : ""))
+        .param("id", id)
+        .query(products)
+        .optional();
   }
 
   public List<Product> findAll() {
     return db.sql("SELECT * FROM products ORDER BY product_id")
-        .query((rs, n) -> product(rs))
+        .query(products)
         .list();
-  }
-
-  private static Product product(java.sql.ResultSet rs) throws java.sql.SQLException {
-    return new Product(
-        rs.getObject("product_id", UUID.class),
-        rs.getString("sku"),
-        rs.getString("name"),
-        new Stock(rs.getLong("on_hand"), rs.getLong("reserved"), rs.getLong("version")),
-        rs.getTimestamp("updated_at").toInstant());
   }
 
   public void insert(Product p) {
@@ -66,17 +58,18 @@ public class JdbcInventoryStore implements InventoryStore {
         .param("at", java.sql.Timestamp.from(p.updatedAt())).param("id", p.productId()).update();
   }
 
-  public Optional<Change> movement(UUID id) {
+  public Optional<StockChange> movement(UUID id) {
     return db.sql("SELECT response FROM stock_movements WHERE movement_id=:id").param("id", id)
-        .query((rs, n) -> json.read(rs.getString(1), Change.class)).optional();
+        .query((rs, n) -> movements.fromJson(rs.getString(1))).optional();
   }
 
-  public void movement(String operation, Product before, Product after, Change result) {
+  public void movement(
+      String operation, Product before, Product after, StockChange result) {
     db.sql(
             "INSERT INTO stock_movements(movement_id,product_id,operation,delta_hand,delta_reserved,version,response) VALUES (:id,:product,:op,:hand,:reserved,:version,:response)")
         .param("id", result.movementId()).param("product", after.productId()).param("op", operation)
         .param("hand", after.stock().onHand() - (before == null ? 0 : before.stock().onHand())).param(
             "reserved", after.stock().reserved() - (before == null ? 0 : before.stock().reserved()))
-        .param("version", after.stock().version()).param("response", json.write(result)).update();
+        .param("version", after.stock().version()).param("response", movements.toJson(result)).update();
   }
 }

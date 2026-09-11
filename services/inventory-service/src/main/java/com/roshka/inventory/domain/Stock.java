@@ -19,8 +19,12 @@ public record Stock(long onHand, long reserved, long version) {
   }
 
   public Stock recount(long quantity, long expectedVersion) {
-    if (version != expectedVersion) throw new IllegalArgumentException("STOCK_VERSION_CONFLICT");
-    if (quantity < reserved) throw new IllegalArgumentException("STOCK_BELOW_RESERVED");
+    if (version != expectedVersion) {
+      throw BusinessException.conflict("STOCK_VERSION_CONFLICT");
+    }
+    if (quantity < reserved) {
+      throw BusinessException.conflict("STOCK_BELOW_RESERVED");
+    }
     return quantity == onHand ? this : new Stock(quantity, reserved, Math.incrementExact(version));
   }
 

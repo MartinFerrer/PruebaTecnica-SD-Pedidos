@@ -28,8 +28,14 @@ class StockTest {
     Stock stock = new Stock(20, 4, 8);
     assertThat(stock.recount(30, 8)).isEqualTo(new Stock(30, 4, 9));
     assertThat(stock.recount(20, 8)).isEqualTo(stock);
-    assertThatThrownBy(() -> stock.recount(30, 7)).isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> stock.recount(3, 8)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> stock.recount(30, 7))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            failure -> assertThat(failure.code()).isEqualTo("STOCK_VERSION_CONFLICT"));
+    assertThatThrownBy(() -> stock.recount(3, 8))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            failure -> assertThat(failure.code()).isEqualTo("STOCK_BELOW_RESERVED"));
   }
 
   @Test

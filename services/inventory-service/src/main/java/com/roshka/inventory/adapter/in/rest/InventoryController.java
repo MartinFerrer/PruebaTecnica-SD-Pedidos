@@ -1,97 +1,97 @@
 package com.roshka.inventory.adapter.in.rest;
 
-import com.roshka.inventory.application.port.in.Inventory;
-import com.roshka.inventory.configuration.RequestTransactions;
+import com.roshka.inventory.application.port.in.CreateProductUseCase;
+import com.roshka.inventory.application.port.in.FindInventoryQuery;
+import com.roshka.inventory.application.port.in.RecountStockUseCase;
+import com.roshka.inventory.application.port.in.RestockProductUseCase;
+import com.roshka.platform.web.HttpResponseMapper;
+import com.roshka.platform.web.RequestTransactions;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class InventoryController {
-  record Create(
-      @NotBlank @Size(max = 100) String sku,
-      @NotBlank @Size(max = 200) String name,
-      @NotNull @Min(0) @Max(1000000000) Long initialStock) {}
+  private final CreateProductUseCase createProduct;
+  private final FindInventoryQuery findInventory;
+  private final RestockProductUseCase restockProduct;
+  private final RecountStockUseCase recountStock;
+  private final RequestTransactions transactions;
+  private final InventoryApiMapper mapper;
 
-  record Restock(
-      @NotNull UUID movementId,
-      @NotNull @Min(1) @Max(1000000000) Long quantity,
-      @NotBlank @Size(max = 200) String reason) {}
-
-  record Recount(
-      @NotNull UUID productId,
-      @NotNull @Min(0) @Max(1000000000) Long stock,
-      @NotNull @Min(1) Long expectedVersion,
-      @NotBlank @Size(max = 200) String reason) {}
-
-  private final Inventory inventory;
-  private final RequestTransactions tx;
-
-  public InventoryController(Inventory inventory, RequestTransactions tx) {
-    this.inventory = inventory;
-    this.tx = tx;
+  public InventoryController(
+      CreateProductUseCase createProduct,
+      FindInventoryQuery findInventory,
+      RestockProductUseCase restockProduct,
+      RecountStockUseCase recountStock,
+      RequestTransactions transactions,
+      InventoryApiMapper mapper) {
+    this.createProduct = createProduct;
+    this.findInventory = findInventory;
+    this.restockProduct = restockProduct;
+    this.recountStock = recountStock;
+    this.transactions = transactions;
+    this.mapper = mapper;
   }
 
   @PostMapping("/products")
   ResponseEntity<String> create(
       @RequestHeader(value = "Idempotency-Key", required = false) String key,
-      @Valid @RequestBody Create c) {
-    return Errors.response(tx.write("create-product", key, c, 201, () -> inventory.create(createCommand(c))));
+      @Valid @RequestBody InventoryRequest.Create request) {
+    return HttpResponseMapper.toResponse(
+        transactions.write(
+            "create-product",
+            key,
+            request,
+            201,
+            () -> mapper.toProductResponse(createProduct.create(mapper.toCommand(request)))));
   }
 
   @GetMapping("/products/{id}/stock")
-  Map<String, Object> get(@PathVariable UUID id) {
-    return tx.read(() -> stockView(inventory.get(id)));
+  StockResponse get(@PathVariable UUID id) {
+    return transactions.read(
+        () -> mapper.toStockResponse(findInventory.findById(id)));
   }
 
   @GetMapping("/products")
-  List<ProductView> list() {
-    return tx.read(() -> inventory.list().stream().map(InventoryController::productView).toList());
+  List<ProductResponse> list() {
+    return transactions.read(
+        () -> findInventory.findAll().stream().map(mapper::toProductResponse).toList());
   }
 
-  @PostMapping("/products/{id}/restocks")
+  @PostMapping("/products/{id}/restock")
   ResponseEntity<String> restock(
       @PathVariable UUID id,
       @RequestHeader(value = "Idempotency-Key", required = false) String key,
-      @Valid @RequestBody Restock c) {
-    return Errors.response(
-        tx.write("restock-product", key, Map.of("productId", id, "body", c), 201,
-            () -> inventory.restock(id, restockCommand(c))));
+      @Valid @RequestBody InventoryRequest.Restock request) {
+    return HttpResponseMapper.toResponse(
+        transactions.write(
+            "restock-product",
+            key,
+            Map.of("productId", id, "body", request),
+            201,
+            () -> mapper.toResponse(restockProduct.restock(id, mapper.toCommand(request)))));
   }
 
   @PutMapping("/products")
   ResponseEntity<String> recount(
       @RequestHeader(value = "Idempotency-Key", required = false) String key,
-      @Valid @RequestBody Recount c) {
-    return Errors.response(tx.write("recount-product", key, c, 200, () -> inventory.recount(recountCommand(c))));
+      @Valid @RequestBody InventoryRequest.Recount request) {
+    return HttpResponseMapper.toResponse(
+        transactions.write(
+            "recount-product",
+            key,
+            request,
+            200,
+            () -> mapper.toResponse(recountStock.recount(mapper.toCommand(request)))));
   }
-
-  private static Inventory.Create createCommand(Create c) {
-    return new Inventory.Create(c.sku(), c.name(), c.initialStock());
-  }
-
-  private static Inventory.Restock restockCommand(Restock c) {
-    return new Inventory.Restock(c.movementId(), c.quantity(), c.reason());
-  }
-
-  private static Inventory.Recount recountCommand(Recount c) {
-    return new Inventory.Recount(c.productId(), c.stock(), c.expectedVersion(), c.reason());
-  }
-
-  private static Map<String, Object> stockView(Inventory.View stock) {
-    return Map.of("productId", stock.productId(), "onHand", stock.onHand(), "reserved", stock.reserved(),
-        "available", stock.available(), "version", stock.version(), "updatedAt", stock.updatedAt());
-  }
-
-  private static ProductView productView(Inventory.View product) {
-    return new ProductView(product.productId(), product.sku(), product.name(), product.onHand(),
-        product.reserved(), product.available(), product.version(), product.updatedAt());
-  }
-
-  record ProductView(UUID productId, String sku, String name, long onHand, long reserved, long available,
-      long version, java.time.Instant updatedAt) {}
 }

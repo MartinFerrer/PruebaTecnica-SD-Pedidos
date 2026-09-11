@@ -9,6 +9,14 @@
   </parent>
   <artifactId>inventory-service</artifactId>
 
+  <dependencies>
+    <dependency>
+      <groupId>com.roshka</groupId>
+      <artifactId>shared-library</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+
   <build>
     <plugins>
       <plugin>

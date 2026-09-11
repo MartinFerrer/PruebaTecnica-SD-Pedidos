@@ -5,6 +5,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace
 COPY pom.xml ./
+COPY contracts contracts
 COPY services services
 ARG SERVICE
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -pl services/${SERVICE}-service -am package

@@ -1,6 +1,6 @@
 # Estrategia de pruebas
 
-Estado: **Estrategia aceptada; implementación pendiente**
+Estado: **Implementación incremental en curso**
 
 ## Objetivo
 
@@ -23,6 +23,19 @@ Las pruebas deben demostrar las propiedades difíciles del sistema: no vender st
 | Presión de recursos | k6 + límites Docker + Toxiproxy; `tc/netem` opcional en Linux | Saturación de CPU/memoria y degradación/cortes de red sin perder consistencia. |
 
 No se usa H2: su locking, tipos y SQL difieren de PostgreSQL precisamente en los puntos que se evalúan.
+
+### Estado de implementación
+
+La primera capa de la estrategia ya está activa:
+
+- unit tests de dominio/aplicación y reglas ArchUnit por servicio y para `shared-library`;
+- integration tests con PostgreSQL y RabbitMQ reales mediante Testcontainers;
+- pruebas de rollback, inbox/outbox, duplicados, mensajes inválidos y carreras de cancelación;
+- carreras concurrentes para reposición repetida, unicidad global de `movementId` y dos reconteos con el mismo `expectedVersion`;
+- checks estructurales iniciales de OpenAPI/AsyncAPI, incluido el path singular de reposición;
+- aceptación Compose mediante `demo-data`, ejecutada dos veces por CI para probar replay idempotente.
+
+La validación completa contra metaschemas, Bruno, k6 multirréplica, Toxiproxy y fuzzing con semilla continúan como incrementos siguientes; los checks estructurales actuales no se presentan como validación exhaustiva del contrato.
 
 ### Configuración de ejecución
 
@@ -83,7 +96,7 @@ El agente debe conservar evidencia de que la prueba nueva falló por el motivo e
 - `POST /orders` devuelve `202`, `Location` y el mismo resultado al repetir clave/payload.
 - `GET /orders/{id}` devuelve todos los `unavailableItems` cuando el pedido termina `REJECTED`.
 - `POST /products` crea stock inicial una sola vez y publica `ProductStockCreated`.
-- `POST /products/{id}/restocks` suma una vez por `movementId` y publica un único `ProductStockReplenished`, incluso si se repite con otra clave HTTP.
+- `POST /products/{id}/restock` suma una vez por `movementId` y publica un único `ProductStockReplenished`, incluso si se repite con otra clave HTTP.
 - `PUT /products` reemplaza el valor absoluto con `expectedVersion` válido y publica `ProductStockUpdated` solo si cambia cantidades.
 - PUT obsoleto devuelve `409`; GET devuelve la versión vigente; replay de una operación confirmada reproduce su respuesta histórica antes de revalidar versiones.
 - `PUT /products` devuelve `409` si el nuevo stock físico queda bajo lo reservado.

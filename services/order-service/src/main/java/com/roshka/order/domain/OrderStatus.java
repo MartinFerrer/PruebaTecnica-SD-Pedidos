@@ -7,7 +7,7 @@ public enum OrderStatus {
   CANCELLED;
 
   public OrderStatus cancel() {
-    if (this == REJECTED) throw new IllegalArgumentException("ORDER_REJECTED");
+    if (this == REJECTED) throw BusinessException.conflict("ORDER_REJECTED");
     return CANCELLED;
   }
 

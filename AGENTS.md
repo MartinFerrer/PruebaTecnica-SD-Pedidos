@@ -56,7 +56,7 @@ Excepciones: documentación, formato y cambios puramente declarativos que no alt
 - Inventory nunca puede confirmar una reserva que deje stock negativo.
 - Inventory reserva todos los ítems o ninguno y reporta la lista completa de faltantes.
 - Una actualización manual de stock no puede fijar existencias físicas por debajo de unidades ya reservadas.
-- Reponer unidades usa `POST /products/{productId}/restocks`, un `movementId` estable y unicidad persistente; no calcular un valor absoluto en el cliente para sumar stock.
+- Reponer unidades usa `POST /products/{productId}/restock`, un `movementId` estable y unicidad persistente; no calcular un valor absoluto en el cliente para sumar stock.
 - Recontar usa `PUT /products` con `expectedVersion`; una versión obsoleta devuelve `409` y no sobrescribe cambios concurrentes.
 - Una cancelación aceptada es terminal en Order y debe converger a stock liberado o nunca reservado en Inventory.
 - No introducir transacciones distribuidas 2PC ni bloqueos entre bases de datos.
@@ -69,3 +69,9 @@ Excepciones: documentación, formato y cambios puramente declarativos que no alt
 - Una tarea de implementación no está completa con pruebas fallando, deshabilitadas o sin ejecutar, salvo bloqueo externo claramente documentado.
 - Si falla fuzzing o una prueba aleatoria, conservar y reportar la semilla y agregarla al corpus de regresión antes de corregir.
 - Los commits deben ser pequeños, coherentes y no mezclar refactors ajenos al cambio.
+
+## Skills del repositorio
+
+- `dry-refactoring` (`.agents/skills/dry-refactoring/SKILL.md`) es la guía obligatoria para detectar duplicación con jscpd y refactorizarla. Leer la skill completa antes de usarla, revisar cada clon en contexto y volver a ejecutar la detección después de cada refactor.
+- Las abstracciones extraídas deben ser técnicas y tener un nombre claro; no crear una biblioteca de dominio compartida ni ocultar diferencias reales entre Order e Inventory.
+- `find-skills` (`.agents/skills/find-skills/SKILL.md`) se usa únicamente cuando una tarea solicite descubrir o instalar una capacidad adicional; no sustituye las herramientas y reglas de verificación del repositorio.

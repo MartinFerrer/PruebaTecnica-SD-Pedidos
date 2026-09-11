@@ -13,5 +13,15 @@ public record Reservation(
 
   public Reservation {
     items = List.copyOf(items);
+    if (orderId == null
+        || !Set.of("RESERVED", "REJECTED", "RELEASED", "CANCELLED_BEFORE_RESERVATION")
+            .contains(state)
+        || lastOrderVersion < 1
+        || version < 1
+        || items.stream().map(Item::productId).distinct().count() != items.size()
+        || ("CANCELLED_BEFORE_RESERVATION".equals(state) && !items.isEmpty())
+        || (!"CANCELLED_BEFORE_RESERVATION".equals(state) && items.isEmpty())) {
+      throw new IllegalArgumentException("INVALID_RESERVATION");
+    }
   }
 }

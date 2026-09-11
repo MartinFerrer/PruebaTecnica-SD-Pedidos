@@ -1,4 +1,4 @@
-package com.roshka.order;
+ArchitectureTestpackage com.roshka.order;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 

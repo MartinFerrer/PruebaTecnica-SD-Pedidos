@@ -12,6 +12,7 @@
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <modules>
+    <module>services/shared-library</module>
     <module>services/order-service</module>
     <module>services/inventory-service</module>
   </modules>

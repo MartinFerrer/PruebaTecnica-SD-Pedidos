@@ -38,7 +38,7 @@ Esta matriz distingue lo exigido por la prueba técnica de las decisiones poster
 | RabbitMQ sobre Kafka | Motivo, entrega, retry, DLQ y orden explicados en README | `README.md` | Aceptada |
 | Lock distribuido PostgreSQL | Coordinación solo dentro de Inventory | `ARCHITECTURE.md` | Aceptada |
 | Java 26 y Spring Boot 4.1.1 | Baseline exacta | `ARCHITECTURE.md` | Aceptada |
-| Crear, reponer y recontar stock | Alta POST; `POST /products/{id}/restocks` aditivo con movimiento único; PUT absoluto con `expectedVersion` | `EVENTS-AND-RACES.md` | Aceptada |
+| Crear, reponer y recontar stock | Alta POST; `POST /products/{id}/restock` aditivo con movimiento único; PUT absoluto con `expectedVersion` | `EVENTS-AND-RACES.md` | Aceptada |
 | Cancelar REJECTED | `409`, estado inalterado | `ARCHITECTURE.md` | Aceptada |
 | Cancelación inmediata | Order pasa a `CANCELLED`; Inventory converge y `StockReleased` confirma compensación, incluso sin reserva previa | `EVENTS-AND-RACES.md` | Aceptada |
 | Contenedores separados | Dos apps, dos DB y RabbitMQ | `LOCAL-DEPLOYMENT.md` | Aceptada |
