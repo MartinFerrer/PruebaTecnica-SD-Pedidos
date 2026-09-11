@@ -57,14 +57,14 @@ y verificaciones deterministas deben quedar automatizados donde se indica.
 
 ### Features/TODO
 
-- [ ] Crear entradas estables desde el root para `quick`, `full`, `contracts`, `acceptance`,
+- [x] Crear entradas estables desde el root para `quick`, `full`, `contracts`, `acceptance`,
   `concurrency`, `property`, `fuzz`, `constrained`, `chaos` y limpieza. Deben tener equivalentes
   claros para Windows y Linux y ser las mismas entradas invocadas por GitHub Actions.
-- [ ] Hacer que cada suite produzca reportes bajo una ruta conocida e incluya versión de Java,
+- [x] Hacer que cada suite produzca reportes bajo una ruta conocida e incluya versión de Java,
   Maven, Docker, imágenes, semilla, configuración de fallos y límites efectivos cuando apliquen.
-- [ ] Separar en la matriz de trazabilidad las columnas **diseño**, **implementación** y **evidencia**;
+- [x] Separar en la matriz de trazabilidad las columnas **diseño**, **implementación** y **evidencia**;
   enlazar cada requisito a una prueba, workflow o TODO concreto.
-- [ ] Registrar explícitamente pruebas omitidas; una puerta obligatoria debe fallar si no descubre
+- [x] Registrar explícitamente pruebas omitidas; una puerta obligatoria debe fallar si no descubre
   las pruebas esperadas.
 
 ### Verificación automática

@@ -12,28 +12,28 @@ pendientes se mantienen en el
 
 ## Requisitos del enunciado
 
-| Requisito | Mecanismo de diseño | Verificación prevista | Estado |
-|---|---|---|---|
-| Al menos Order Service e Inventory Service con Spring Boot | Dos aplicaciones hexagonales desplegables de forma independiente | ArchUnit, build por módulo y Compose | Cubierto |
-| Crear, listar, consultar y cancelar pedidos | `POST /orders`, `GET /orders`, `GET /orders/{id}`, `POST /orders/{id}/cancel` | Unit, REST Assured y Bruno | Cubierto |
-| Estados `PENDING`, `CONFIRMED`, `REJECTED`, `CANCELLED` | Máquina de estados explícita; `CANCELLED` terminal | Tabla completa de transiciones | Cubierto |
-| Crear, listar, mantener, reservar y liberar stock sin negativos | `POST /products`, `GET /products`, `GET /products/{id}/stock`, `onHand`, `reserved`, `available`; locks y constraints PostgreSQL | Integration/concurrency/property tests | Cubierto |
-| Operaciones idempotentes | `Idempotency-Key`, hash de request y replay persistido | Requests repetidos y concurrentes | Cubierto |
-| Datos separados, sin tablas compartidas | Dos contenedores PostgreSQL, usuarios/redes distintos | Compose y pruebas de configuración | Cubierto |
-| Comunicación asíncrona | RabbitMQ y Saga por coreografía | Testcontainers y e2e | Cubierto |
-| Garantía at-least-once | Persistencia, durable queues, confirms, ACK manual | Fallos antes/después de confirm/ACK | Cubierto |
-| Mensajes duplicados | Outbox con `eventId` estable, inbox y estado/versiones | Entrega repetida 100 veces | Cubierto |
-| Errores temporales | Retry diferido 1/5/30 s, transferencias confirmadas y DLX at-least-once; backoff/jitter en relay/reconexión | Toxiproxy y broker/DB temporalmente inaccesibles | Cubierto |
-| Mensajes no procesables | DLQ con causa, headers y replay idempotente | Payload inválido e intentos agotados | Cubierto |
-| Orden cuando corresponda | Sin dependencia de FIFO; `aggregateVersion` y state machines | Permutación de eventos | Cubierto |
-| Múltiples instancias y bloqueo distribuido | Advisory lock por pedido y row locks ordenados | Réplicas concurrentes sobre el último stock | Cubierto |
-| Cancelación durante reserva | Tombstone y lock compartido por `orderId` | Ambas intercalaciones y crash/retry | Cubierto |
-| Tests unitarios | JUnit/AssertJ y dominio puro | Job `unit` | Cubierto |
-| Stack de integración tipo Postman/Bruno | Bruno CLI contra Compose | Job `e2e` | Cubierto |
-| Pruebas concurrentes | JUnit determinista y k6 | Smoke PR y suite extendida | Cubierto |
-| Patrones/arquitectura | Hexagonal, DDD táctico, Saga, outbox/inbox y state machine | ArchUnit y revisión del diseño consolidado | Cubierto |
-| Observabilidad/trazabilidad | OpenTelemetry, Prometheus, Tempo, Loki y Grafana | Perfil opcional y smoke de propagación | Cubierto |
-| Configuración de agentes/TDD/SDD | `AGENTS.md`, contratos primero y mismas puertas que CI | Revisión de cambios y branch protection | Cubierto |
+| Requisito | Mecanismo | Diseño | Implementación | Evidencia actual |
+|---|---|---|---|---|
+| Al menos Order Service e Inventory Service con Spring Boot | Dos aplicaciones hexagonales independientes | Aceptado | Implementado | ArchUnit, build y Compose base |
+| Crear, listar, consultar y cancelar pedidos | Endpoints REST de Order | Aceptado | Implementado | Unit/ServiceIT; Bruno pendiente |
+| Estados `PENDING`, `CONFIRMED`, `REJECTED`, `CANCELLED` | Máquina de estados; `CANCELLED` terminal | Aceptado | Implementado | Tests de dominio y aplicación |
+| Stock sin negativos y reserva/liberación | Locks, constraints y `onHand/reserved/available` | Aceptado | Implementado | Unit/ServiceIT; property pendiente |
+| Operaciones idempotentes | Clave, hash y replay persistido | Aceptado | Parcial | Replay básico; concurrencia/headers/timeout pendientes |
+| Datos separados, sin tablas compartidas | PostgreSQL, usuarios y redes por servicio | Aceptado | Implementado | Compose y ArchUnit |
+| Comunicación asíncrona | RabbitMQ y Saga por coreografía | Aceptado | Implementado | Testcontainers; e2e completo pendiente |
+| Garantía at-least-once | Outbox, queues durables, confirms y ACK manual | Aceptado | Parcial | Código base; failpoints deterministas pendientes |
+| Mensajes duplicados | `eventId`, inbox y versiones | Aceptado | Parcial | Duplicados básicos; campaña 100x pendiente |
+| Errores temporales | Retry 1/5/30, DLX y backoff | Aceptado | Parcial | Retry/DLQ base; Toxiproxy y ventanas de fallo pendientes |
+| Mensajes no procesables | DLQ con causa, headers y replay | Aceptado | Parcial | Payload inválido; herramienta de replay pendiente |
+| Orden cuando corresponda | `aggregateVersion` y state machines | Aceptado | Parcial | Casos básicos; permutaciones pendientes |
+| Múltiples instancias y bloqueo distribuido | Advisory/row locks y réplicas | Aceptado | Parcial | Carreras locales; k6 multirréplica pendiente |
+| Cancelación durante reserva | Tombstone y lock por `orderId` | Aceptado | Parcial | Casos básicos; intercalaciones completas pendientes |
+| Tests unitarios | JUnit/AssertJ y dominio puro | Aceptado | Implementado | 46 pruebas en última verificación |
+| Stack de integración tipo Postman/Bruno | Bruno CLI contra Compose | Aceptado | Pendiente | Entrada M0 creada; colección Bruno pendiente |
+| Pruebas concurrentes | JUnit determinista y k6 | Aceptado | Parcial | Algunas carreras JUnit; k6 pendiente |
+| Patrones/arquitectura | Hexagonal, Saga, outbox/inbox y state machine | Aceptado | Implementado | ArchUnit y revisión de código |
+| Observabilidad/trazabilidad | OTel, Prometheus, Tempo, Loki y Grafana | Aceptado | Pendiente | Actuator/logs base; stack posterior pendiente |
+| Configuración de agentes/TDD/SDD | `AGENTS.md`, contratos y puertas CI | Aceptado | Parcial | Documentación/workflow base; branch protection pendiente |
 
 ## Decisiones adicionales del usuario
 

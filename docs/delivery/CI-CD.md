@@ -2,10 +2,12 @@
 
 Estado: **CI base implementado en `.github/workflows/ci.yaml`; CD y puertas adicionales pendientes**
 
-El workflow actual ejecuta comandos portables (`mvn`, `docker compose`): unitarios,
-integraciones reales, reglas hexagonales, cobertura, advertencias de Checkstyle, validación de
-Compose y arranque base. El formato sigue sujeto a revisión manual en los cambios; Checkstyle
-informa problemas básicos sin bloquear el build. No se ha ejecutado remotamente aún. Las secciones
+El workflow actual invoca `java scripts/Verify.java` con suites estables en una matriz de
+`ubuntu-latest` y `windows-latest`: ambos runners ejecutan el mismo alcance y el runner usa comandos
+portables (Maven Wrapper/local Maven y `docker compose`) para unitarios, integraciones reales, reglas hexagonales,
+cobertura, advertencias de Checkstyle, validación de Compose y arranque base. El formato sigue
+sujeto a revisión manual en los cambios; Checkstyle informa problemas básicos sin bloquear el build.
+No se ha ejecutado remotamente aún. Las secciones
 siguientes mantienen el diseño objetivo; análisis de seguridad adicionales, fuzzing y publicación
 en GHCR todavía no están implementados. Ver
 [evidencia y pendientes](../testing/IMPLEMENTATION-VERIFICATION.md) y la

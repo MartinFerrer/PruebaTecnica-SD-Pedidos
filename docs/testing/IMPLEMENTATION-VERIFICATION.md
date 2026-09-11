@@ -28,11 +28,15 @@ La verificación local de implementación terminó con código 0: imágenes reco
 
 Después del renombrado y la extracción técnica, `docker compose config --quiet` y `docker compose build order-service inventory-service` también terminaron correctamente el 2026-09-11; ambas imágenes compilan el reactor incluyendo `shared-library`.
 
-```powershell
-mvn -B -ntp clean verify
-docker compose config --quiet
-docker compose up --build --wait --wait-timeout 180
+```text
+java scripts/Verify.java quick
+java scripts/Verify.java full
+java scripts/Verify.java acceptance
 ```
+
+El runner de M0 deja metadata, logs sanitizados, versiones de herramientas, configuración,
+imágenes y reportes Maven en `reports/verification/<suite>/<run-id>/`. Las suites que todavía no
+existen terminan con `SUITE_NOT_IMPLEMENTED`; no se cuentan como ejecutadas.
 
 Los reportes unitarios e integración quedan en `services/*/target/{surefire,failsafe}-reports`; cobertura en `services/*/target/site/jacoco`. CI conserva estos reportes como artefactos. El workflow aún no se ejecutó en GitHub.
 

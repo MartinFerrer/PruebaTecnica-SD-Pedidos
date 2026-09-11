@@ -85,7 +85,7 @@ La prueba de saldos exactos del dataset se ejecuta en volúmenes de prueba vací
 
 El contenedor de carga es one-shot: no se incluye como servicio permanente en el `up --wait` del sistema base. CI lo ejecuta dos veces sobre volúmenes limpios para comprobar que el segundo pase reproduce las respuestas sin duplicar efectos.
 
-Los comandos de Compose son iguales en PowerShell, Command Prompt, Bash, macOS, Linux y Windows. La limpieza distingue entre `docker compose down` (conserva volúmenes) y la eliminación explícita de volúmenes cuando se quiera reiniciar el entorno.
+Los comandos de Compose son iguales en Windows, macOS y Linux cuando se ejecutan desde un shell compatible. La limpieza distingue entre `docker compose down` (conserva volúmenes) y la eliminación explícita de volúmenes cuando se quiera reiniciar el entorno.
 
 ## Múltiples réplicas y límites efectivos
 

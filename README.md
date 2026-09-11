@@ -4,7 +4,7 @@ Primera implementación funcional de Order e Inventory, con contratos REST/event
 
 La arquitectura acordada usa Java 26, Spring Boot 4.1.1, arquitectura hexagonal, PostgreSQL, RabbitMQ, Docker Compose, pruebas automatizadas y CI/CD en GitHub.
 
-## Documentación final
+## Documentación
 
 - [Arquitectura del sistema](docs/architecture/ARCHITECTURE.md)
 - [Flujos y contratos asíncronos](docs/architecture/EVENTS-AND-RACES.md)
@@ -20,8 +20,7 @@ La arquitectura acordada usa Java 26, Spring Boot 4.1.1, arquitectura hexagonal,
 
 ## Ejecutar localmente
 
-Para desplegar solo se requiere Docker Desktop/Engine con Compose v2. Copiar `.env.example` a `.env` y establecer contraseñas locales antes del primer arranque; no versionar `.env`. El build instala Maven dentro de su etapa temporal, por lo que no depende de herramientas específicas del sistema anfitrión.
-
+Para desplegar solo se requiere Docker Desktop/Engine con Compose v2. Copiar `.env.example` a `.env` y establecer contraseñas locales antes del primer arranque. El build instala Maven dentro de su etapa temporal, por lo que no depende de herramientas específicas del sistema anfitrión.
 ```text
 docker compose up --build --wait --wait-timeout 180
 ```
@@ -64,17 +63,6 @@ docker compose --profile demo-data run --build --rm demo-data
 El comando usa únicamente las APIs públicas, verifica la convergencia y puede repetirse sin crear
 operaciones adicionales ni volver a sumar stock.
 
-## Desarrollo y verificación
-
-Para compilar y ejecutar las pruebas fuera de Docker se requiere Java 26, Maven 3.9+ y Docker para Testcontainers. Configurar `JAVA_HOME`, Maven y Docker en `PATH`.
-
-```text
-mvn -B -ntp clean verify
-docker compose config --quiet
-docker compose up --build --wait --wait-timeout 180
-```
-La verificación comprueba tests unitarios, integración con Testcontainers, ArchUnit, cobertura y configuración/arranque de Compose.
-
 ## RabbitMQ: elección y garantía de entrega
 
 Se eligió RabbitMQ porque el sistema necesita comunicación asíncrona operacional entre pocos servicios, routing, acknowledgements, reintentos y dead-letter queues. No requiere el throughput, la retención extensa ni las capacidades de streaming de Kafka; RabbitMQ también reduce el consumo de recursos y la complejidad del despliegue solicitado. Factores concretos de la implementación.
@@ -86,6 +74,36 @@ Se eligió RabbitMQ porque el sistema necesita comunicación asíncrona operacio
 - **Orden:** no se presupone orden global. `aggregateVersion`, locks por recurso y máquinas de estado resuelven eventos duplicados o fuera de orden.
 
 Los ACK del consumidor y los publisher confirms no constituyen two-phase commit. PostgreSQL y RabbitMQ se coordinan mediante transactional outbox/inbox, aceptando duplicados controlados en lugar de una transacción distribuida.
+
+## Desarrollo y verificación
+
+Para ejecutar el runner se requiere Java 26; Docker es necesario para Testcontainers y Compose.
+Maven no es obligatorio: el wrapper incluido fija Maven 3.9.16.
+```text
+java scripts/Verify.java quick
+java scripts/Verify.java full
+java scripts/Verify.java acceptance
+```
+En Windows también se puede usar `scripts\verify.cmd quick`, `scripts\verify.cmd full` y
+`scripts\verify.cmd acceptance`; en POSIX, `sh scripts/verify.sh quick` usa el mismo runner.
+Cada ejecución deja metadata, logs sanitizados y resultados en
+`reports/verification/<suite>/<run-id>/`. Las suites `property`, `fuzz`, `constrained` y
+`chaos` fallan explícitamente hasta que sus arneses se implementen; no se presentan como pruebas
+ejecutadas.
+
+### Maven
+
+Wrapper incluido:
+```text
+./mvnw -B -ntp clean verify
+mvnw.cmd -B -ntp clean verify
+```
+Maven instalado:
+```text
+mvn -B -ntp clean verify
+```
+
+Ambas opciones requieren Java 26; el wrapper descarga Maven la primera vez.
 
 ## Alcance y estado
 

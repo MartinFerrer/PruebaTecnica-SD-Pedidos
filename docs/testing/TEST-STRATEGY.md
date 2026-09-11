@@ -201,14 +201,20 @@ El smoke obligatorio en PR aplica cuotas calibradas al runner, carga acotada y a
 
 ## Comandos reproducibles
 
-Durante la implementación se ofrecerá una interfaz estable desde el root, con equivalentes para Windows:
+La interfaz estable desde el root está en `java scripts/Verify.java`, con wrappers mínimos en
+`scripts/verify.sh` y `scripts/verify.cmd`:
 
-- verificación rápida: compilación y unit tests; el formato se revisa manualmente;
-- verificación completa: `mvn -B -ntp verify`, incluidos integration tests;
-- aceptación: levantar Compose y ejecutar Bruno;
-- concurrencia: levantar múltiples réplicas y ejecutar k6;
-- fuzzing extensivo: ejecutar el perfil Maven dedicado conservando corpus y semillas;
-- recursos limitados: combinar overrides Compose `constrained`/`chaos`, perfil del proxy, k6 y verificación de convergencia;
-- limpieza: detener Compose conservando o eliminando volúmenes de forma explícita.
+- verificación rápida: `java scripts/Verify.java quick`;
+- verificación completa: `java scripts/Verify.java full`, incluidos integration tests;
+- contratos: `java scripts/Verify.java contracts`;
+- aceptación: `java scripts/Verify.java acceptance`;
+- concurrencia: `java scripts/Verify.java concurrency`;
+- fuzzing extensivo: `java scripts/Verify.java fuzz`, conservando corpus y semillas cuando esté implementado;
+- recursos limitados: `java scripts/Verify.java constrained`;
+- caos de red: `java scripts/Verify.java chaos`;
+- limpieza: `java scripts/Verify.java clean`, detiene Compose sin eliminar volúmenes.
+
+Las suites aún no implementadas terminan con error explícito y un reporte `SUITE_NOT_IMPLEMENTED`.
+Esto evita que una puerta pase silenciosamente sin descubrir pruebas.
 
 Los workflows de GitHub invocarán esos mismos comandos; la lógica no se duplicará en YAML.
