@@ -9,7 +9,9 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -130,7 +132,13 @@ public final class Verify {
 			@SuppressWarnings("unchecked")
 			Map<String, Object> configuration = (Map<String, Object>) metadata.get("configuration");
 			configuration.put("overrides", List.of("deploy/compose/constrained.yaml"));
-			configuration.put("resourceLimits", "deploy/compose/constrained.yaml; effective inspection pending");
+			configuration.put("resourceLimits", "deploy/compose/constrained.yaml; effective limits and runtime stats recorded");
+		}
+		if (suite.equals("chaos")) {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> configuration = (Map<String, Object>) metadata.get("configuration");
+			configuration.put("overrides", List.of("deploy/compose/chaos.yaml"));
+			configuration.put("failureInjection", "Toxiproxy latency on rabbitmq proxy; restored before final check");
 		}
 		writeMetadata();
 	}
@@ -140,14 +148,19 @@ public final class Verify {
 			case "quick" -> runMaven(List.of("test"));
 			case "full" -> runMaven(List.of("clean", "verify"));
 			case "contracts" -> runMaven(List.of("-pl", "services/shared-library", "-am", "-Dtest=*ContractTest", "test"));
-			case "concurrency" -> runMaven(List.of("-pl", "services/order-service,services/inventory-service", "-am",
-					"-Dtest=*Test", "-Dit.test=ServiceIT,IdempotencyIT,MessagingIT", "verify"));
+			case "concurrency" -> {
+				runMaven(List.of("-pl", "services/order-service,services/inventory-service", "-am",
+						"-Dtest=*Test", "-Dit.test=ServiceIT,IdempotencyIT,MessagingIT", "verify"));
+				if (success) {
+					runK6Smoke();
+				}
+			}
 			case "acceptance" -> runAcceptance();
 			case "clean" -> runClean();
 			case "property" -> markPending("No existe todavía un perfil de property tests");
 			case "fuzz" -> markPending("No existe todavía un perfil de fuzzing con semillas/corpus");
 			case "constrained" -> runConstrained();
-			case "chaos" -> markPending("No existe todavía un override/arnés de caos de red");
+			case "chaos" -> runChaos();
 			default -> throw new IllegalStateException("Unsupported suite: " + suite);
 		}
 	}
@@ -167,12 +180,18 @@ public final class Verify {
 
 	private void runConstrained() throws IOException {
 		runAcceptance();
+		if (success) {
+			runK6Smoke();
+		}
 	}
 
 	private List<String> compose(String... arguments) {
 		var command = new ArrayList<>(List.of("docker", "compose", "-f", "compose.yaml"));
 		if (suite.equals("constrained")) {
 			command.addAll(List.of("-f", "deploy/compose/constrained.yaml"));
+		}
+		if (suite.equals("chaos")) {
+			command.addAll(List.of("-f", "deploy/compose/chaos.yaml"));
 		}
 		command.addAll(List.of(arguments));
 		return command;
@@ -221,10 +240,112 @@ public final class Verify {
 			}
 		}
 		finally {
-			runStep("compose-logs", List.of("docker", "compose", "logs", "--no-color"), true);
-			runStep("compose-status", List.of("docker", "compose", "ps", "-a"), true);
-			runStep("compose-down", List.of("docker", "compose", "down"), true);
+			runStep("compose-logs", compose("logs", "--no-color"), true);
+			runStep("compose-status", compose("ps", "-a"), true);
+			runStep("compose-down", compose("down"), true);
 		}
+	}
+
+	private void runK6Smoke() throws IOException {
+		if (!commandAvailable("docker")) {
+			markPending("Docker no está disponible para k6 multirréplica");
+			return;
+		}
+		Path summary = repository.resolve("reports").resolve("k6-summary.json");
+		Files.deleteIfExists(summary);
+		List<String> up = replicaCompose("up", "--build", "--wait", "--wait-timeout", "180",
+				"--scale", "order-service=2", "--scale", "inventory-service=2", "order-service", "inventory-service");
+		try {
+			if (runStep("k6-services", up, false)
+					&& runStep("k6-multireplica", replicaCompose("--profile", "k6", "run", "--rm", "--no-deps", "k6"), false)) {
+				if (!Files.exists(summary)) {
+					markPending("k6 no produjo summary-export");
+				}
+				else {
+					Path destination = reportDirectory.resolve("k6-summary.json");
+					Files.copy(summary, destination, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+					@SuppressWarnings("unchecked")
+					Map<String, Object> reports = (Map<String, Object>) metadata.get("reports");
+					reports.put("k6", destination.toString());
+					validateReplicaTraffic();
+					runStep("resource-stats", List.of("docker", "stats", "--no-stream", "--format",
+							"table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.PIDs}}"), true);
+					runStep("k6-queue-state", replicaCompose("exec", "-T", "rabbitmq", "rabbitmqctl", "list_queues",
+							"name", "messages_ready", "messages_unacknowledged"), true);
+				}
+			}
+		}
+		finally {
+			runStep("k6-down", replicaCompose("--profile", "k6", "down"), true);
+		}
+	}
+
+	private void validateReplicaTraffic() throws IOException {
+		String log = Files.readString(logFile);
+		Map<String, Set<String>> instances = new LinkedHashMap<>();
+		Pattern pattern = Pattern.compile("K6_INSTANCE service=([^\\s]+) instance=([^\\s]+)");
+		var matcher = pattern.matcher(log);
+		while (matcher.find()) {
+			instances.computeIfAbsent(matcher.group(1), ignored -> new HashSet<>()).add(matcher.group(2));
+		}
+		metadata.put("replicaInstances", instances);
+		writeMetadata();
+		for (String service : List.of("order", "inventory")) {
+			if (instances.getOrDefault(service, Set.of()).size() < 2) {
+				markPending("k6 no observó tráfico en las dos réplicas de " + service);
+			}
+		}
+	}
+
+	private List<String> replicaCompose(String... arguments) {
+		var command = new ArrayList<>(List.of("docker", "compose", "-f", "compose.yaml"));
+		if (suite.equals("constrained")) {
+			command.addAll(List.of("-f", "deploy/compose/constrained.yaml"));
+		}
+		command.addAll(List.of("-f", "deploy/compose/replicas.yaml"));
+		command.addAll(List.of(arguments));
+		return command;
+	}
+
+	private void runChaos() throws IOException {
+		if (!commandAvailable("docker")) {
+			markPending("Docker no está disponible para chaos");
+			return;
+		}
+		try {
+			if (!runStep("chaos-config", compose("config", "--quiet"), false)
+					|| !runStep("chaos-up", compose("up", "--build", "--wait", "--wait-timeout", "180"), false)) {
+				return;
+			}
+			runStep("chaos-baseline", compose("--profile", "demo-data", "run", "--rm", "--no-deps", "demo-data"), false);
+			runStep("chaos-add-latency", compose("run", "--rm", "--no-deps", "--entrypoint", "sh",
+					"toxiproxy-init", "-c", "echo " + toxiproxyLatencyPayload() + 
+					" | base64 -d | curl -sS --fail-with-body" +
+					" -X POST http://toxiproxy:8474/proxies/rabbitmq/toxics -H 'Content-Type: application/json' -d @-"), false);
+			runStep("chaos-degraded-replay", compose("--profile", "demo-data", "run", "--rm", "--no-deps", "demo-data"), false);
+			runStep("chaos-remove-latency", compose("run", "--rm", "--no-deps", "--entrypoint", "curl",
+					"toxiproxy-init", "-sS", "--fail-with-body", "-X", "DELETE",
+					"http://toxiproxy:8474/proxies/rabbitmq/toxics/latency_downstream"), false);
+			runStep("chaos-recovery", compose("--profile", "demo-data", "run", "--rm", "--no-deps", "demo-data"), false);
+			runStep("chaos-queue-state", compose("exec", "-T", "rabbitmq", "rabbitmqctl", "list_queues", "name",
+					"messages_ready", "messages_unacknowledged"), true);
+		}
+		finally {
+			runStep("chaos-logs", compose("logs", "--no-color"), true);
+			runStep("chaos-status", compose("ps", "-a"), true);
+			runStep("chaos-down", compose("down"), true);
+		}
+	}
+
+	private String toxiproxyLatencyPayload() {
+		String name = "latency_downstream";
+		String type = "latency";
+		String stream = "downstream";
+		int latency = 250;
+		int jitter = 50;
+		String json = "{\"name\":\"%s\",\"type\":\"%s\",\"stream\":\"%s\",\"attributes\":{\"latency\":%d,\"jitter\":%d}}"
+				.formatted(name, type, stream, latency, jitter);
+		return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
 	}
 
 	private boolean runStep(String name, List<String> command, boolean continueOnFailure) throws IOException {

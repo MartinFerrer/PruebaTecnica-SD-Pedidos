@@ -144,7 +144,7 @@ class ServiceIT {
 		try (var pool = java.util.concurrent.Executors.newFixedThreadPool(8)) {
 			var start = new java.util.concurrent.CountDownLatch(1);
 			var tasks = new java.util.ArrayList<java.util.concurrent.Future<HttpResponse<String>>>();
-			for (int i = 0; i < 20; i++) {
+			for (int i = 0; i < 100; i++) {
 				tasks.add(pool.submit(() -> {
 					start.await();
 					return request("POST", "/products/" + id + "/restock", UUID.randomUUID().toString(),
@@ -161,32 +161,119 @@ class ServiceIT {
 				"{\"movementId\":\"" + UUID.randomUUID() + "\",\"quantity\":7,\"reason\":\"RACE\"}");
 		assertThat(extra.statusCode()).isEqualTo(201);
 		assertThat(stock(id).get("onHand").asLong()).isEqualTo(32);
+		com.roshka.testing.InvariantVerifier.assertInventory(app.getBean(
+				org.springframework.jdbc.core.simple.JdbcClient.class));
 	}
 
 	@Test
 	void concurrentRecountsWithTheSameVersionHaveOneWinner() throws Exception {
 		String id = createProduct(20);
+		String firstKey = UUID.randomUUID().toString();
+		String secondKey = UUID.randomUUID().toString();
+		String firstBody = "{\"productId\":\"" + id + "\",\"stock\":25,\"expectedVersion\":1,\"reason\":\"COUNT_A\"}";
+		String secondBody = "{\"productId\":\"" + id + "\",\"stock\":30,\"expectedVersion\":1,\"reason\":\"COUNT_B\"}";
 		try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
 			var start = new java.util.concurrent.CountDownLatch(1);
 			var first = pool.submit(() -> {
 				start.await();
-				return request("PUT", "/products", UUID.randomUUID().toString(),
-						"{\"productId\":\"" + id + "\",\"stock\":25,\"expectedVersion\":1,\"reason\":\"COUNT_A\"}");
+				return request("PUT", "/products", firstKey, firstBody);
 			});
 			var second = pool.submit(() -> {
 				start.await();
-				return request("PUT", "/products", UUID.randomUUID().toString(),
-						"{\"productId\":\"" + id + "\",\"stock\":30,\"expectedVersion\":1,\"reason\":\"COUNT_B\"}");
+				return request("PUT", "/products", secondKey, secondBody);
 			});
 			start.countDown();
 
 			var responses = java.util.List.of(first.get(), second.get());
 			assertThat(responses).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(200, 409);
+		HttpResponse<String> winner = responses.stream().filter(response -> response.statusCode() == 200).findFirst()
+				.orElseThrow();
+		String winnerKey = responses.get(0).statusCode() == 200 ? firstKey : secondKey;
+		String winnerRequest = responses.get(0).statusCode() == 200 ? firstBody : secondBody;
+		assertThat(request("PUT", "/products", winnerKey, winnerRequest).body()).isEqualTo(winner.body());
 		}
 
 		var current = stock(id);
 		assertThat(current.get("onHand").asLong()).isIn(25L, 30L);
 		assertThat(current.get("version").asLong()).isEqualTo(2);
+		com.roshka.testing.InvariantVerifier.assertInventory(app.getBean(
+				org.springframework.jdbc.core.simple.JdbcClient.class));
+	}
+
+	@Test
+	void oneHundredConcurrentReservationsConfirmTenAndRejectNinety() throws Exception {
+		String product = createProduct(10);
+		var start = new java.util.concurrent.CountDownLatch(1);
+		try (var pool = java.util.concurrent.Executors.newFixedThreadPool(16)) {
+			var tasks = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+			for (int i = 0; i < 100; i++) {
+				String order = UUID.randomUUID().toString();
+				tasks.add(pool.submit(() -> {
+					start.await();
+					send("OrderCreated", order, 1, UUID.randomUUID().toString(),
+							java.util.Map.of("orderId", order, "items",
+									java.util.List.of(java.util.Map.of("productId", product, "quantity", 1))));
+					return null;
+				}));
+			}
+			start.countDown();
+			for (var task : tasks) {
+				task.get(30, java.util.concurrent.TimeUnit.SECONDS);
+			}
+		}
+		var db = app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class);
+		org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> {
+			assertThat(db.sql("SELECT count(*) FROM reservations WHERE state='RESERVED' AND items LIKE :item")
+					.param("item", "%" + product + "%").query(Long.class).single())
+					.isEqualTo(10);
+			assertThat(db.sql("SELECT count(*) FROM reservations WHERE state='REJECTED' AND items LIKE :item")
+					.param("item", "%" + product + "%").query(Long.class).single())
+					.isEqualTo(90);
+			assertThat(stock(product).get("reserved").asLong()).isEqualTo(10);
+		});
+		com.roshka.testing.InvariantVerifier.assertInventory(db);
+	}
+
+	@Test
+	void reverseOrderMultiItemReservationsUseAllOrNothingWithoutDeadlock() throws Exception {
+		String first = createProduct(1);
+		String second = createProduct(1);
+		var start = new java.util.concurrent.CountDownLatch(1);
+		var barrier = new java.util.concurrent.CyclicBarrier(2);
+		try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+			var tasks = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+			for (int i = 0; i < 2; i++) {
+				String order = UUID.randomUUID().toString();
+				var items = i == 0
+						? java.util.List.of(java.util.Map.of("productId", first, "quantity", 1),
+								java.util.Map.of("productId", second, "quantity", 1))
+						: java.util.List.of(java.util.Map.of("productId", second, "quantity", 1),
+								java.util.Map.of("productId", first, "quantity", 1));
+				tasks.add(pool.submit(() -> {
+					start.await();
+					barrier.await();
+					send("OrderCreated", order, 1, UUID.randomUUID().toString(),
+							java.util.Map.of("orderId", order, "items", items));
+					return null;
+				}));
+			}
+			start.countDown();
+			for (var task : tasks) {
+				task.get(30, java.util.concurrent.TimeUnit.SECONDS);
+			}
+		}
+		var db = app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class);
+		org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> {
+			assertThat(db.sql("SELECT count(*) FROM reservations WHERE state='RESERVED' AND items LIKE :item")
+					.param("item", "%" + first + "%").query(Long.class).single())
+					.isEqualTo(1);
+			assertThat(db.sql("SELECT count(*) FROM reservations WHERE state='REJECTED' AND items LIKE :item")
+					.param("item", "%" + first + "%").query(Long.class).single())
+					.isEqualTo(1);
+			assertThat(stock(first).get("reserved").asLong()).isEqualTo(1);
+			assertThat(stock(second).get("reserved").asLong()).isEqualTo(1);
+		});
+		com.roshka.testing.InvariantVerifier.assertInventory(db);
 	}
 
 	@Test
@@ -259,6 +346,8 @@ class ServiceIT {
 			.during(Duration.ofMillis(500))
 			.atMost(Duration.ofSeconds(5))
 			.untilAsserted(() -> assertThat(stock(id).get("reserved").asLong()).isEqualTo(2));
+		com.roshka.testing.InvariantVerifier.assertInventory(app.getBean(
+				org.springframework.jdbc.core.simple.JdbcClient.class));
 	}
 
 	@Test
@@ -288,6 +377,8 @@ class ServiceIT {
 		org.awaitility.Awaitility.await()
 			.atMost(Duration.ofSeconds(10))
 			.untilAsserted(() -> assertThat(stock(id).get("reserved").asLong()).isZero());
+		com.roshka.testing.InvariantVerifier.assertInventory(app.getBean(
+				org.springframework.jdbc.core.simple.JdbcClient.class));
 		send("OrderCreated", order, 1, UUID.randomUUID().toString(),
 				java.util.Map.of("orderId", order, "items", items));
 		org.awaitility.Awaitility.await()

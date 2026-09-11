@@ -34,7 +34,7 @@ public final class DlqReplay {
 			EventContract.validate(event);
 			String type = event.path("eventType").asString();
 			var allowed = service.equals("inventory") ? Set.of("OrderCreated", "OrderCancelled")
-					: Set.of("StockReserved", "StockRejected", "StockReleased");
+													  : Set.of("StockReserved", "StockRejected", "StockReleased");
 			if (!expectedEventId.equals(event.path("eventId").asString()) || !allowed.contains(type)) {
 				throw new IllegalArgumentException("UNEXPECTED_DLQ_HEAD_OR_DESTINATION");
 			}

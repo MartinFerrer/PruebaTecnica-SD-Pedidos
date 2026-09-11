@@ -72,7 +72,9 @@ java scripts/Verify.java quick
 java scripts/Verify.java full
 java scripts/Verify.java contracts
 java scripts/Verify.java acceptance
+java scripts/Verify.java concurrency
 java scripts/Verify.java constrained
+java scripts/Verify.java chaos
 ```
 
 En Windows también están disponibles `scripts/verify.cmd`; en Linux/macOS, `scripts/verify.sh`.
@@ -83,6 +85,12 @@ logs sanitizados en `reports/verification/<suite>/<run-id>/`.
 La colección Bruno versionada cubre los endpoints, errores y las transiciones de la Saga:
 [tests/bruno/README.md](tests/bruno/README.md). El replay controlado de DLQ está documentado en
 [DLQ-REPLAY.md](docs/operations/DLQ-REPLAY.md).
+
+`concurrency` ejecuta carreras deterministas, el verificador de invariantes y un smoke k6 con dos
+réplicas de Order e Inventory. `constrained` añade cuotas efectivas y presión corta. `chaos` usa
+Toxiproxy, aplica una latencia temporal a RabbitMQ y comprueba la recuperación. La campaña opcional
+Linux con `tc/netem` está en `scripts/netem.sh`; requiere `tc`, `nsenter` y privilegios, y no es
+necesaria para el desarrollo normal.
 
 ## RabbitMQ: elección y garantía de entrega
 
@@ -108,14 +116,14 @@ java scripts/Verify.java acceptance
 En Windows también se puede usar `scripts\verify.cmd quick`, `scripts\verify.cmd full` y
 `scripts\verify.cmd acceptance`; en POSIX, `sh scripts/verify.sh quick` usa el mismo runner.
 Cada ejecución deja metadata, logs sanitizados y resultados en
-`reports/verification/<suite>/<run-id>/`. Las suites `property`, `fuzz`, `constrained` y
-`chaos` siguen pendientes y fallan explícitamente; `constrained` sí se ejecuta como smoke versionado
-El smoke `constrained` queda automatizado y las suites `property`, `fuzz` y `chaos` siguen pendientes.
+`reports/verification/<suite>/<run-id>/`. k6 conserva su resumen y los identificadores de instancia
+observados junto con el log de la ejecución.
 
 ### Estado de las suites
 
-`constrained` ejecuta el smoke de cuotas efectivas, demo-data y Bruno bajo el override versionado.
-`property`, `fuzz` y `chaos` siguen pendientes y fallan explícitamente.
+`constrained` ejecuta el smoke de cuotas efectivas, demo-data, Bruno y presión k6 bajo el override
+versionado. `chaos` ejecuta el perfil Toxiproxy y conserva configuración, logs y estado de colas.
+`property` y `fuzz` siguen pendientes y fallan explícitamente.
 
 ### Maven
 
@@ -133,6 +141,9 @@ Ambas opciones requieren Java 26; el wrapper descarga Maven la primera vez.
 
 ## Alcance y estado
 
-Los endpoints base, reservas atómicas, cancelaciones, outbox/inbox, idempotencia HTTP, contratos y replay de DLQ están implementados para los hitos M1-M3. Hay pruebas automatizadas y un workflow de CI preparado; su ejecución remota requiere inicializar y publicar el repositorio. El informe de verificación distingue las comprobaciones ejecutadas de las pendientes.
+Los endpoints base, reservas atómicas, cancelaciones, outbox/inbox, idempotencia HTTP, contratos,
+carreras deterministas, invariantes, réplicas, cuotas y caos corto están implementados. Hay pruebas
+automatizadas y un workflow de CI preparado; su ejecución remota requiere inicializar y publicar el
+repositorio. El informe de verificación distingue las comprobaciones ejecutadas de las pendientes.
 
-Compose local usa un nodo RabbitMQ y no ofrece HA. La consistencia eventual requiere recuperación de dependencias y replay de mensajes en DLQ cuando corresponda. Autenticación, pagos y despacho quedan fuera del alcance; no exponer este despliegue de desarrollo a Internet. Quedan pendientes los perfiles de observabilidad y caos de red, fuzzing extensivo y publicación CD en GHCR.
+Compose local usa un nodo RabbitMQ y no ofrece HA. La consistencia eventual requiere recuperación de dependencias y replay de mensajes en DLQ cuando corresponda. Autenticación, pagos y despacho quedan fuera del alcance; no exponer este despliegue de desarrollo a Internet. Quedan pendientes los perfiles de observabilidad, fuzzing extensivo y publicación CD en GHCR.

@@ -1,0 +1,42 @@
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    command: ["-host=0.0.0.0"]
+    networks: [order-data, inventory-data, messaging]
+  toxiproxy-init:
+    image: curlimages/curl:8.11.1
+    networks: [messaging]
+    depends_on:
+      toxiproxy: {condition: service_started}
+      order-db: {condition: service_healthy}
+      inventory-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    entrypoint: [sh, -c]
+    command:
+      - >-
+        until curl -fsS http://toxiproxy:8474/version; do sleep 1; done
+        && curl -fsS -X POST http://toxiproxy:8474/proxies -H 'Content-Type: application/json'
+        -d '{"name":"order-db","listen":"0.0.0.0:15432","upstream":"order-db:5432"}'
+        && curl -fsS -X POST http://toxiproxy:8474/proxies -H 'Content-Type: application/json'
+        -d '{"name":"inventory-db","listen":"0.0.0.0:15433","upstream":"inventory-db:5432"}'
+        && curl -fsS -X POST http://toxiproxy:8474/proxies -H 'Content-Type: application/json'
+        -d '{"name":"rabbitmq","listen":"0.0.0.0:15672","upstream":"rabbitmq:5672"}'
+    restart: "no"
+  order-service:
+    environment:
+      DATABASE_URL: jdbc:postgresql://toxiproxy:15432/orders
+      RABBITMQ_HOST: toxiproxy
+      RABBITMQ_PORT: 15672
+    depends_on:
+      toxiproxy-init: {condition: service_completed_successfully}
+  inventory-service:
+    environment:
+      DATABASE_URL: jdbc:postgresql://toxiproxy:15433/inventory
+      RABBITMQ_HOST: toxiproxy
+      RABBITMQ_PORT: 15672
+    depends_on:
+      toxiproxy-init: {condition: service_completed_successfully}
+networks:
+  order-data: {internal: true}
+  inventory-data: {internal: true}
+  messaging: {}

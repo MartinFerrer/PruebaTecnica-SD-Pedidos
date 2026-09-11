@@ -26,11 +26,11 @@ pendientes se mantienen en el
 | Errores temporales | Retry 1/5/30, DLX y backoff | Aceptado | Implementado | `MessagingIT`; secuencia completa y fallos de transferencia |
 | Mensajes no procesables | DLQ con causa, headers y replay | Aceptado | Implementado | `DlqReplay`, `DLQ-REPLAY.md`, payload inválido retenido |
 | Orden cuando corresponda | `aggregateVersion` y state machines | Aceptado | Parcial | Casos básicos; permutaciones pendientes |
-| Múltiples instancias y bloqueo distribuido | Advisory/row locks y réplicas | Aceptado | Parcial | Carreras locales; k6 multirréplica pendiente |
-| Cancelación durante reserva | Tombstone y lock por `orderId` | Aceptado | Parcial | Casos básicos; intercalaciones completas pendientes |
+| Múltiples instancias y bloqueo distribuido | Advisory/row locks y réplicas | Aceptado | Implementado | `ServiceIT` con barreras; Compose replicas + k6 registra dos `X-Service-Instance` |
+| Cancelación durante reserva | Tombstone y lock por `orderId` | Aceptado | Implementado | `ServiceIT`, `MessagingIT` y verificador final de reservas activas |
 | Tests unitarios | JUnit/AssertJ y dominio puro | Aceptado | Implementado | Maven sin omisiones; conteo por reporte de cada ejecución |
 | Stack de integración tipo Postman/Bruno | Bruno CLI contra Compose | Aceptado | Implementado | 22 solicitudes, 68 assertions por pasada, dos pasadas con replay |
-| Pruebas concurrentes | JUnit determinista y k6 | Aceptado | Parcial | Algunas carreras JUnit; k6 pendiente |
+| Pruebas concurrentes | JUnit determinista y k6 | Aceptado | Implementado | 100 reservas, última unidad, orden inverso, recuento/reposición y k6 multirréplica |
 | Patrones/arquitectura | Hexagonal, Saga, outbox/inbox y state machine | Aceptado | Implementado | ArchUnit y revisión de código |
 | Observabilidad/trazabilidad | OTel, Prometheus, Tempo, Loki y Grafana | Aceptado | Pendiente | Actuator/logs base; stack posterior pendiente |
 | Configuración de agentes/TDD/SDD | `AGENTS.md`, contratos y puertas CI | Aceptado | Parcial | Documentación/workflow base; branch protection pendiente |

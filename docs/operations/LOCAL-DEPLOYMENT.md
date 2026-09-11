@@ -1,6 +1,6 @@
 # Despliegue local y datos predeterminados
 
-Estado: **Base/default, demo-data y overrides de recursos/réplicas implementados; otros perfiles opcionales pendientes**
+Estado: **Base/default, demo-data, réplicas, recursos y caos corto implementados; observabilidad sigue pendiente**
 
 ## Uso disponible actualmente
 
@@ -23,7 +23,7 @@ segmentos `{productId}` y `{orderId}` no aceptan valores numéricos como `0`; en
 
 `docker compose down` detiene el entorno y conserva volúmenes. No usar opciones de eliminación de volúmenes si se desean conservar los datos.
 
-El perfil `demo-data` está disponible. Las secciones de `observability` y `chaos` describen diseño pendiente. Ver [estado de verificación](../testing/IMPLEMENTATION-VERIFICATION.md).
+El perfil `demo-data`, el override `replicas` y el perfil `chaos` están disponibles. Ver [estado de verificación](../testing/IMPLEMENTATION-VERIFICATION.md).
 
 ## Contenedores base
 
@@ -82,6 +82,8 @@ La prueba de saldos exactos del dataset se ejecuta en volúmenes de prueba vací
 - sistema con datos: primero `docker compose up --build --wait --wait-timeout 180`, después `docker compose --profile demo-data run --build --rm demo-data` y comprobar su código de salida;
 - sistema observable: `docker compose --profile observability up --wait`;
 - prueba limitada: archivo base más override `constrained` y, cuando corresponda, override/perfil `chaos`.
+- réplicas y k6: archivo base más `deploy/compose/replicas.yaml`; el runner activa dos réplicas y el servicio k6.
+- caos corto: archivo base más `deploy/compose/chaos.yaml`; el runner crea proxies para ambas bases y RabbitMQ.
 
 El contenedor de carga es one-shot: no se incluye como servicio permanente en el `up --wait` del sistema base. CI lo ejecuta dos veces sobre volúmenes limpios para comprobar que el segundo pase reproduce las respuestas sin duplicar efectos.
 
@@ -91,7 +93,7 @@ Los comandos de Compose son iguales en Windows, macOS y Linux cuando se ejecutan
 
 Los servicios escalables no fijarán `container_name` ni un mismo puerto de host por réplica. El arnés de pruebas accede a puertos descubiertos o direcciones internas de cada réplica y distribuye peticiones explícitamente, comprobando que todas atiendan trabajo; resolver un nombre DNS una sola vez no demuestra reparto. No se añade un gateway por este motivo.
 
-El runner verifica cuotas efectivas mediante inspección Docker y registra CPU throttling, memoria/OOM, reinicios y backlog. La JVM y los pools tienen presupuestos compatibles con el límite del contenedor. Toxiproxy se introduce solo en los caminos seleccionados y el test guarda la configuración de fallos. Tras retirar restricciones/fallos transitorios, se comprueban invariantes y convergencia con timeout; no basta que k6 reciba respuestas HTTP.
+El runner verifica cuotas efectivas mediante inspección Docker y registra CPU throttling, memoria/OOM, reinicios y backlog. La JVM y los pools tienen presupuestos compatibles con el límite del contenedor. Toxiproxy se introduce solo en los caminos seleccionados y el test guarda la configuración de fallos. Tras retirar restricciones/fallos transitorios, el smoke comprueba replay, estado de colas y recuperación; las invariantes y la convergencia se verifican en la puerta de concurrencia de M4.
 
 ## Limitaciones declaradas
 

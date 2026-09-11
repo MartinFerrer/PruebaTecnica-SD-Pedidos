@@ -35,7 +35,7 @@ La primera capa de la estrategia ya está activa:
 - checks estructurales iniciales de OpenAPI/AsyncAPI, incluido el path singular de reposición;
 - aceptación Compose mediante `demo-data`, ejecutada dos veces por CI para probar replay idempotente.
 
-La validación completa contra metaschemas, Bruno, k6 multirréplica, Toxiproxy y fuzzing con semilla continúan como incrementos siguientes; los checks estructurales actuales no se presentan como validación exhaustiva del contrato.
+La validación completa contra metaschemas, Bruno, k6 multirréplica y Toxiproxy está versionada en las puertas correspondientes; property tests y fuzzing con semilla continúan como incrementos siguientes.
 
 ### Configuración de ejecución
 
@@ -109,7 +109,7 @@ El agente debe conservar evidencia de que la prueba nueva falló por el motivo e
 
 ### Concurrencia y carreras
 
-Pruebas deterministas con barreras/latches coordinan el instante de las transacciones; k6 mide la solución completa.
+Pruebas deterministas con barreras/latches coordinan el instante de las transacciones; k6 mide la solución completa y registra `X-Service-Instance` para comprobar el reparto entre réplicas.
 
 Escenarios de aceptación:
 
@@ -126,7 +126,7 @@ Escenarios de aceptación:
 11. Dos reconteos con la misma versión leída: solo uno puede cambiar cantidades; el otro obtiene `409`. Repetir la clave exitosa devuelve el snapshot original.
 12. Cancelar compite con consumir rechazo: si rechazo gana en Order, cancelación `409`; si cancelación fue aceptada, convergencia a `CANCELLED/COMPLETED` aunque Inventory ya haya rechazado.
 
-El verificador usa datos aislados y cuenta movimientos efectivos, no intentos HTTP. Comprueba `reserved = suma de reservation_items de reservas activas` y `onHand = suma de deltas físicos de movimientos confirmados`, incluido el delta de cada reconteo. Después de drenar mensajes y completar replays necesarios, contrasta estados de Order y Reservation para detectar reservas huérfanas. Las lecturas directas de ambas bases están permitidas solo al arnés de pruebas, nunca a los servicios.
+El verificador usa snapshots aislados y cuenta movimientos efectivos, no intentos HTTP. Comprueba `reserved = suma de items JSON de reservas activas` y `onHand = suma de deltas físicos de movimientos confirmados`, incluido el delta de cada reconteo. Después de drenar mensajes y completar replays necesarios, contrasta estados de Order y Reservation para detectar reservas huérfanas. Las lecturas directas de ambas bases están permitidas solo al arnés de pruebas, nunca a los servicios.
 
 Los assertions asíncronos usan Awaitility con timeout y polling; no usan `sleep` fijo.
 

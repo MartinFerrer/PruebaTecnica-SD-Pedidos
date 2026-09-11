@@ -41,7 +41,7 @@ public class BrokerTopology {
 				declarations.add(new Queue(service + ".retry." + delay, true, false, false, retry));
 			}
 			List<String> types = service.equals("order") ? List.of("StockReserved", "StockRejected", "StockReleased")
-					: List.of("OrderCreated", "OrderCancelled");
+														 : List.of("OrderCreated", "OrderCancelled");
 			for (String type : types) {
 				declarations.add(BindingBuilder.bind(queue).to(exchange).with(type));
 			}

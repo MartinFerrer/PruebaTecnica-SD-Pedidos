@@ -18,7 +18,7 @@ Detalle de persistencia de la primera implementación: Inventory almacena los í
 - Consistencia cuando una cancelación compite con una reserva en proceso.
 - Pruebas unitarias, de integración, de API y concurrentes.
 
-### Decisiones agregadas por la solicitud
+### Decisiones Adicionales
 
 - Java moderno y Spring/Spring Boot.
 - Arquitectura hexagonal.

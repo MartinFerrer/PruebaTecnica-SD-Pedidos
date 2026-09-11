@@ -28,8 +28,8 @@ roadmap se usan estos estados:
 | Saga y mensajería | Implementado para M3 | Outbox/inbox, confirms, ACK manual, retry/DLQ, failpoints deterministas, assertions de topología y replay validado por convergencia. |
 | Idempotencia HTTP | Implementado para M2 | Headers históricos, concurrencia, conflictos, errores definitivos, timeout de lock, migración V2->V3 y retry acotado de deadlock/serialización. |
 | Contratos | Implementado para M1 | OpenAPI/AsyncAPI contra metaschemas versionados, schemas de eventos, validación observada request/response y colección Bruno repetible. |
-| Pruebas | Implementado para M1-M3 | Maven, Testcontainers, Bruno en Compose, integración de mensajería, idempotencia, límites y constraints; property/fuzz/k6 permanecen en M4-M6. |
-| Compose | Parcial | Base, `demo-data`, cuotas y réplicas existen; no existen perfiles versionados de observabilidad o caos ni arneses de invariantes. |
+| Pruebas | Implementado para M1-M4/M6 smoke | Maven, Testcontainers, Bruno en Compose, integración de mensajería, idempotencia, límites, constraints, carreras deterministas, k6 multirréplica y presión corta. Property/fuzz siguen pendientes. |
+| Compose | Implementado para M4/M6 smoke | Base, `demo-data`, réplicas, cuotas y Toxiproxy están versionados; observabilidad sigue pendiente. |
 | Observabilidad | Pendiente | Hay Actuator health, logs ECS y contexto en el envelope; no hay Collector, Prometheus, Tempo, Loki, Grafana, spans exportados, métricas de negocio, dashboards o alertas. |
 | CI | Parcial | Un workflow ejecuta Maven, Compose y `demo-data`; no se pudo confirmar una ejecución remota autenticada y aún no contiene todas las puertas diseñadas. |
 | CD y seguridad de artefactos | Pendiente | No hay publicación GHCR, SBOM, escaneo de imágenes, attestations, release workflow ni actualización automática de dependencias. |
@@ -201,13 +201,13 @@ silenciosa, doble efecto ni marcado prematuro de outbox.
 
 ### Features/TODO
 
-- [ ] Crear un verificador de invariantes aislado para tests que calcule movimientos efectivos,
+- [x] Crear un verificador de invariantes aislado para tests que calcule movimientos efectivos,
   reservas activas, stock y correspondencia Order/Reservation después de drenar mensajes.
-- [ ] Convertir las carreras restantes en tests deterministas con barreras, no en pruebas que
+- [x] Convertir las carreras restantes en tests deterministas con barreras, no en pruebas que
   dependan únicamente de probabilidad o tiempos.
-- [ ] Versionar k6 y un arnés para dos o más réplicas de cada servicio; debe dirigir tráfico a todas
+- [x] Versionar k6 y un arnés para dos o más réplicas de cada servicio; debe dirigir tráfico a todas
   las réplicas y registrar cuáles atendieron solicitudes.
-- [ ] Cubrir los doce escenarios de concurrencia enumerados en `TEST-STRATEGY.md`, incluidos pedidos
+- [x] Cubrir los doce escenarios de concurrencia enumerados en `TEST-STRATEGY.md`, incluidos pedidos
   multítem en orden inverso, última unidad, recuento/reposición/reserva/liberación y la carrera entre
   rechazo y cancelación.
 
@@ -269,13 +269,13 @@ solo “falló alguna vez”.
 
 ### Features/TODO
 
-- [ ] Versionar el arnés de `constrained`: carga, inspección de cuotas efectivas, presión observada,
+- [x] Versionar el arnés de `constrained`: carga, inspección de cuotas efectivas, presión observada,
   métricas de reinicio/backlog y verificación posterior de invariantes.
-- [ ] Agregar perfil/override `chaos` con Toxiproxy entre servicios y PostgreSQL/RabbitMQ; registrar
+- [x] Agregar perfil/override `chaos` con Toxiproxy entre servicios y PostgreSQL/RabbitMQ; registrar
   latencia, cortes, timeouts y ancho de banda aplicados.
-- [ ] Añadir `tc/netem` solo como campaña opcional en runners Linux que permitan privilegios; no
+- [x] Añadir `tc/netem` solo como campaña opcional en runners Linux que permitan privilegios; no
   hacerlo requisito del desarrollo local normal.
-- [ ] Calibrar un smoke corto para PR y separar campañas severas/prolongadas manuales o programadas.
+- [x] Calibrar un smoke corto para PR y separar campañas severas/prolongadas manuales o programadas.
 
 ### Verificación automática
 

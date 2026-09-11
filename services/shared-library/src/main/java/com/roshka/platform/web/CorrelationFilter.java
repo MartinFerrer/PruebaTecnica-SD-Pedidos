@@ -26,9 +26,18 @@ public class CorrelationFilter extends OncePerRequestFilter {
 			trace = MessageContext.newTrace();
 		}
 		response.setHeader("X-Correlation-Id", correlation);
+		response.setHeader("X-Service-Instance", instanceId());
 		try (var scope = new MessageContext(correlation, UUID.randomUUID().toString(), trace).open()) {
 			chain.doFilter(request, response);
 		}
+	}
+
+	private String instanceId() {
+		String instance = System.getenv("INSTANCE_ID");
+		if (instance == null || instance.isBlank()) {
+			instance = System.getenv("HOSTNAME");
+		}
+		return instance == null || instance.isBlank() ? "local" : instance;
 	}
 
 }

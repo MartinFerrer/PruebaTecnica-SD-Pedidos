@@ -5,3 +5,20 @@ services:
     ports: !override ["127.0.0.1::8080"]
   inventory-service:
     ports: !override ["127.0.0.1::8080"]
+  k6:
+    profiles: [k6]
+    image: grafana/k6:0.54.0
+    environment:
+      ORDER_URL: http://order-service:8080
+      INVENTORY_URL: http://inventory-service:8080
+      K6_RUN_ID: ${K6_RUN_ID:-local}
+      K6_SUMMARY_PATH: /reports/k6-summary.json
+    volumes:
+      - ./tests/k6:/scripts:ro
+      - ./reports:/reports
+    networks: [messaging]
+    command: [run, --vus, "20", --duration, 10s, --summary-export, /reports/k6-summary.json, /scripts/multireplica.js]
+    depends_on:
+      order-service: {condition: service_healthy}
+      inventory-service: {condition: service_healthy}
+    restart: "no"
