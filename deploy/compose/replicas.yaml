@@ -8,6 +8,7 @@ services:
   k6:
     profiles: [k6]
     image: grafana/k6:0.54.0
+    user: "0:0"
     environment:
       ORDER_URL: http://order-service:8080
       INVENTORY_URL: http://inventory-service:8080

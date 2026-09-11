@@ -115,6 +115,7 @@ services:
   acceptance:
     profiles: [acceptance]
     image: usebruno/cli:4.1.0
+    user: "0:0"
     working_dir: /bruno
     volumes:
       - ./tests/bruno:/bruno:ro

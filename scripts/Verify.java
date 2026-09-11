@@ -7,10 +7,12 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,8 +58,10 @@ public final class Verify {
 		this.repository = findRepository();
 		this.suite = suite;
 		this.seed = seed;
+		Path reports = repository.resolve("reports");
+		makeContainerWritable(reports);
 		String runId = RUN_TIME.format(Instant.now()) + "-" + UUID.randomUUID().toString().substring(0, 8);
-		this.reportDirectory = repository.resolve("reports").resolve("verification").resolve(suite).resolve(runId);
+		this.reportDirectory = reports.resolve("verification").resolve(suite).resolve(runId);
 		this.logFile = reportDirectory.resolve("run.log");
 		this.metadataFile = reportDirectory.resolve("metadata.json");
 		this.resultFile = reportDirectory.resolve("result.json");
@@ -83,11 +87,28 @@ public final class Verify {
 		writeMetadata();
 	}
 
-	private static void makeContainerWritable(Path directory) {
-		var file = directory.toFile();
-		file.setReadable(true, false);
-		file.setWritable(true, false);
-		file.setExecutable(true, false);
+	private static void makeContainerWritable(Path directory) throws IOException {
+		Files.createDirectories(directory);
+		try {
+			Set<PosixFilePermission> permissions = EnumSet.copyOf(Files.getPosixFilePermissions(directory));
+			permissions.addAll(EnumSet.of(
+					PosixFilePermission.OWNER_READ,
+					PosixFilePermission.OWNER_WRITE,
+					PosixFilePermission.OWNER_EXECUTE,
+					PosixFilePermission.GROUP_READ,
+					PosixFilePermission.GROUP_WRITE,
+					PosixFilePermission.GROUP_EXECUTE,
+					PosixFilePermission.OTHERS_READ,
+					PosixFilePermission.OTHERS_WRITE,
+					PosixFilePermission.OTHERS_EXECUTE));
+			Files.setPosixFilePermissions(directory, permissions);
+		}
+		catch (UnsupportedOperationException ignored) {
+			var file = directory.toFile();
+			file.setReadable(true, false);
+			file.setWritable(true, false);
+			file.setExecutable(true, false);
+		}
 	}
 
 	public static void main(String[] arguments) throws Exception {
