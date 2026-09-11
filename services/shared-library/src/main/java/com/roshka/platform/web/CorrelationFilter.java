@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class CorrelationFilter extends OncePerRequestFilter {
 
 	@Override
+	@SuppressWarnings("unused")
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
 		String correlation = request.getHeader("X-Correlation-Id");
@@ -28,7 +29,7 @@ public class CorrelationFilter extends OncePerRequestFilter {
 		}
 		response.setHeader("X-Correlation-Id", correlation);
 		response.setHeader("X-Service-Instance", instanceId());
-		try (var scope = new MessageContext(correlation, UUID.randomUUID().toString(), trace).open()) {
+		try (var contextScope = new MessageContext(correlation, UUID.randomUUID().toString(), trace).open()) {
 			MDC.put("service", serviceName());
 			String orderId = orderId(request.getRequestURI());
 			if (orderId != null) {

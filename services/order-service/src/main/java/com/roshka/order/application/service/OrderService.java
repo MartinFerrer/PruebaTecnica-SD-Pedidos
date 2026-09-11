@@ -139,7 +139,7 @@ public class OrderService implements CreateOrderUseCase, FindOrdersQuery, Cancel
 		Map<UUID, Order.Item> requested = new HashMap<>();
 		order.items().forEach(item -> requested.put(item.productId(), item));
 		if (shortages.isEmpty()
-				|| shortages.stream().map(Order.Shortage::productId).distinct().count() != shortages.size()
+				|| shortages.stream().map(shortage -> shortage.productId()).distinct().count() != shortages.size()
 				|| shortages.stream().anyMatch(shortage -> {
 					Order.Item item = requested.get(shortage.productId());
 					return item == null || shortage.requested() != item.quantity() || shortage.available() < 0

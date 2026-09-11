@@ -1,7 +1,6 @@
 # Flujos, eventos, ACK y condiciones de carrera
 
-Estado: **Decisiones aceptadas; contratos ilustrativos**  
-Los ejemplos se convertirán en OpenAPI y AsyncAPI antes de implementar.
+Los ejemplos de flujos se especificaron en OpenAPI y AsyncAPI antes de implementar.
 
 ## Nombres y versiones
 

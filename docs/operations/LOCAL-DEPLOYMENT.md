@@ -1,8 +1,6 @@
 # Despliegue local y datos predeterminados
 
-Estado: **Base/default, demo-data, réplicas, recursos, caos corto y observabilidad implementados**
-
-## Uso disponible actualmente
+## Uso del sistema localmente con Docker
 
 Con Docker Desktop en modo Linux, copiar `.env.example` a `.env`, establecer contraseñas locales y ejecutar `docker compose up --build --wait --wait-timeout 180`. Las APIs escuchan en `127.0.0.1:8081` (Order) y `127.0.0.1:8082` (Inventory); RabbitMQ Management en `127.0.0.1:15672`. Las bases no publican puertos al host.
 

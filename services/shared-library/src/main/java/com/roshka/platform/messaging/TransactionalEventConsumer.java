@@ -10,7 +10,6 @@ import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
-import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import org.slf4j.MDC;
 import org.springframework.amqp.core.Message;
@@ -96,6 +95,7 @@ public abstract class TransactionalEventConsumer {
 		return json;
 	}
 
+	@SuppressWarnings("unused")
 	protected final void consume(Message message, Channel channel) throws IOException {
 		long tag = message.getMessageProperties().getDeliveryTag();
 		Map<String, Object> headers = message.getMessageProperties().getHeaders();
@@ -108,14 +108,14 @@ public abstract class TransactionalEventConsumer {
 			.setAttribute("messaging.destination.name", inputQueue)
 			.startSpan();
 		try {
-			try (Scope ignored = span.makeCurrent()) {
+			try (var spanScope = span.makeCurrent()) {
 			if (message.getBody().length > 262_144) {
 				throw new IllegalArgumentException("MESSAGE_TOO_LARGE");
 			}
 			JsonNode event = json.mapper.readTree(message.getBody());
 			validate(event);
-			span.setAttribute("messaging.event.type", event.path("eventType").asText());
-			span.setAttribute("messaging.message.id", event.path("eventId").asText());
+			span.setAttribute("messaging.event.type", event.path("eventType").asString());
+			span.setAttribute("messaging.message.id", event.path("eventId").asString());
 			tx.executeWithoutResult(status -> {
 				db.sql("SET LOCAL lock_timeout = '3s'").update();
 				int added = db
@@ -127,16 +127,16 @@ public abstract class TransactionalEventConsumer {
 				if (added != 0) {
 					var context = new MessageContext(requiredText(event, "correlationId"),
 							requiredText(event, "eventId"), requiredText(event, "traceparent"));
-					try (var scope = context.open()) {
+					try (var contextScope = context.open()) {
 						MDC.put("service", serviceName());
 						MDC.put("event_id", requiredText(event, "eventId"));
-						String orderId = event.path("payload").path("orderId").asText(null);
+						String orderId = event.path("payload").path("orderId").asString(null);
 						if (orderId != null) {
 							MDC.put("order_id", orderId);
 						}
 						try {
 							handle(event);
-							metrics.increment("messages_processed_total", "event_type", event.path("eventType").asText(),
+							metrics.increment("messages_processed_total", "event_type", event.path("eventType").asString(),
 									"outcome", "processed");
 						}
 						finally {

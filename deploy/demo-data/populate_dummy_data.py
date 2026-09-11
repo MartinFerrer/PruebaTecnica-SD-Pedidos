@@ -5,15 +5,14 @@ espera las transiciones asíncronas de las órdenes y puede ejecutarse varias
 veces sin duplicar productos, movimientos de stock ni órdenes.
 """
 
+from argparse import ArgumentParser
+from datetime import datetime, timezone
 import json
 import os
 import sys
 import time
 import urllib.error
 import urllib.request
-from argparse import ArgumentParser
-from datetime import datetime, timezone
-
 
 INVENTORY_URL = os.getenv("INVENTORY_URL", "http://inventory-service:8080")
 ORDER_URL = os.getenv("ORDER_URL", "http://order-service:8080")

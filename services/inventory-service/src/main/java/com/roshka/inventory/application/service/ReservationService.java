@@ -120,7 +120,7 @@ public class ReservationService implements ReserveStockUseCase, CancelReservatio
 		}
 
 		reservations.save(new Reservation(orderId, existing.isEmpty() ? "CANCELLED_BEFORE_RESERVATION" : "RELEASED",
-				version, nextVersion, existing.map(Reservation::items).orElse(List.of())));
+				version, nextVersion, existing.map(reservation -> reservation.items()).orElse(List.of())));
 		 events.publish("StockReleased", orderId, nextVersion, Map.of("orderId", orderId, "requestOrderVersion", version,
 				"outcome", outcome, "releasedItems", released));
 		metrics.increment("inventory_releases_total", "outcome", outcome.toLowerCase());
@@ -138,7 +138,7 @@ public class ReservationService implements ReserveStockUseCase, CancelReservatio
 
 	private static void validateReservationRequest(long version, List<Reservation.Item> items) {
 		if (version != 1 || items.isEmpty() || items.size() > 100
-				|| items.stream().map(Reservation.Item::productId).distinct().count() != items.size()) {
+				|| items.stream().map(item -> item.productId()).distinct().count() != items.size()) {
 			throw new IllegalArgumentException("INVALID_RESERVATION");
 		}
 	}

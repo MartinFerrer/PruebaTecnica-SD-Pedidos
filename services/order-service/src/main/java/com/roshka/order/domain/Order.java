@@ -20,7 +20,7 @@ public record Order(UUID orderId, List<Item> items, OrderStatus status, long ver
 		items = List.copyOf(items);
 		unavailableItems = List.copyOf(unavailableItems);
 		if (items.isEmpty() || items.size() > 100
-				|| items.stream().map(Item::productId).distinct().count() != items.size()) {
+				|| items.stream().map(item -> item.productId()).distinct().count() != items.size()) {
 			throw new IllegalArgumentException("INVALID_ITEMS");
 		}
 	}

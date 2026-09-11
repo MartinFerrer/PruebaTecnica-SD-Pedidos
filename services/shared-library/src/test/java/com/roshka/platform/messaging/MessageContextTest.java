@@ -8,6 +8,7 @@ import org.slf4j.MDC;
 class MessageContextTest {
 
 	@Test
+	@SuppressWarnings("unused")
 	void nestedScopesRestoreThePreviousContextAndMdc() {
 		var first = new MessageContext("first", "cause-1", "00-11111111111111111111111111111111-1111111111111111-01");
 		var second = new MessageContext("second", "cause-2", "00-22222222222222222222222222222222-2222222222222222-01");

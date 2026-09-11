@@ -1,10 +1,5 @@
 # Arquitectura del sistema
 
-Estado: **Implementada y preparada para validación de release**
-Alcance actual: demo funcional con verificación local reproducible y puertas equivalentes en CI.
-
-Detalle de persistencia de la primera implementación: Inventory almacena los ítems de cada reserva como JSON en la fila del agregado, bajo el mismo lock y transacción. La tabla de detalle descrita conceptualmente no es necesaria para el acceso actual; no hay consultas cruzadas entre servicios. Cualquier evolución del esquema se realizará mediante una migración hacia adelante.
-
 ## 1. Separación entre requisitos y decisiones
 
 ### Requisitos del enunciado
@@ -39,7 +34,7 @@ Detalle de persistencia de la primera implementación: Inventory almacena los í
 - `POST /orders` acepta el proceso con `202 PENDING`; el resultado final y los faltantes se consultan mediante `GET /orders/{orderId}`.
 - El objetivo de CD inicial es producir y publicar artefactos verificables. Un despliegue a un entorno remoto requiere definir ese entorno.
 
-## 2. Decisión principal
+## 2. Decisión principal de Arquitectura
 
 Se adopta un monorepo con dos aplicaciones desplegables de forma independiente y mensajería RabbitMQ. Cada servicio tiene su propia base PostgreSQL y aplica arquitectura hexagonal. La coordinación usa una Saga asíncrona, transactional outbox en productores e inbox/idempotent consumer en consumidores.
 

@@ -185,7 +185,7 @@ class ServiceIT {
 			start.countDown();
 
 			var responses = java.util.List.of(first.get(), second.get());
-			assertThat(responses).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(200, 409);
+			assertThat(responses).extracting(response -> response.statusCode()).containsExactlyInAnyOrder(200, 409);
 		HttpResponse<String> winner = responses.stream().filter(response -> response.statusCode() == 200).findFirst()
 				.orElseThrow();
 		String winnerKey = responses.get(0).statusCode() == 200 ? firstKey : secondKey;
@@ -295,7 +295,7 @@ class ServiceIT {
 			start.countDown();
 
 			var responses = java.util.List.of(first.get(), second.get());
-			assertThat(responses).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(201, 409);
+			assertThat(responses).extracting(response -> response.statusCode()).containsExactlyInAnyOrder(201, 409);
 		}
 
 		assertThat(stock(firstId).get("onHand").asLong() + stock(secondId).get("onHand").asLong()).isEqualTo(25);

@@ -30,13 +30,13 @@ public final class InvariantVerifier {
 		Map<UUID, Long> productReserved = db.sql("SELECT product_id,reserved FROM products")
 			.query((rs, row) -> Map.entry(rs.getObject(1, UUID.class), rs.getLong(2))).list().stream()
 			.filter(entry -> entry.getValue() > 0)
-			.collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+			.collect(java.util.stream.Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()));
 		Map<UUID, Long> activeReserved = new LinkedHashMap<>();
 		db.sql("SELECT items FROM reservations WHERE state='RESERVED'").query(String.class).list().forEach(items -> {
 			try {
 				for (var item : JSON.readTree(items)) {
 					UUID product = UUID.fromString(item.path("productId").asString());
-					activeReserved.merge(product, item.path("quantity").asLong(), Long::sum);
+					activeReserved.merge(product, item.path("quantity").asLong(), (left, right) -> left + right);
 				}
 			}
 			catch (Exception exception) {

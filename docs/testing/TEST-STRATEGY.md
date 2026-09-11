@@ -1,7 +1,5 @@
 # Estrategia de pruebas
 
-Estado: **Estrategia implementada; evidencia remota registrada en CI-CD**
-
 ## Objetivo
 
 Las pruebas deben demostrar las propiedades difíciles del sistema: no vender stock inexistente, idempotencia, tolerancia a redelivery, convergencia ante cancelación y recuperación de fallos. La cobertura numérica es una señal secundaria.

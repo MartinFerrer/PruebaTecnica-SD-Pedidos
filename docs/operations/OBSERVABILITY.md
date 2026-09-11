@@ -1,6 +1,6 @@
 # Observabilidad y telemetría
 
-Estado: **Implementado; perfil local opcional**
+Definición de lo necesario para perfil local opcional de observabilidad y telemetría.
 
 ## Objetivo
 

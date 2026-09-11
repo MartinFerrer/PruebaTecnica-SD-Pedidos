@@ -52,7 +52,7 @@ absoluto en el cliente.
 `productId` y `orderId` son UUID devueltos por los respectivos `POST`. Los cuerpos REST están
 definidos en `contracts/openapi/`. Para detener conservando datos: `docker compose down`.
 
-## RabbitMQ: elección y garantía de entrega
+## Elección de sistema de mensajería y garantía de entrega: RabbitMQ
 
 Se eligió RabbitMQ porque el sistema necesita comunicación asíncrona operacional entre pocos servicios, routing, acknowledgements, reintentos y dead-letter queues. No se requiere el throughput, la retención extensa ni las capacidades de streaming de Kafka. RabbitMQ también reduce el consumo de recursos y la complejidad del despliegue solicitado comparado a soluciones como Kafka.
 Factores concretos de la implementación:
@@ -62,11 +62,12 @@ Factores concretos de la implementación:
 - **Mensajes no procesables:** errores permanentes o reintentos agotados pasan a una DLQ (dead-letter queue) con causa, headers originales y procedimiento de replay. El replay conserva `eventId`.
 - **Orden:** no se presupone orden global. `aggregateVersion`, locks por recurso y máquinas de estado resuelven eventos duplicados o fuera de orden.
 
-PostgreSQL y RabbitMQ se coordinan mediante transactional outbox/inbox, aceptando duplicados controlados en lugar de una transacción distribuida donde se requeriria locking y protocolos como two-phase commit.
+### Concurrencia
+PostgreSQL y RabbitMQ se coordinan mediante transactional outbox/inbox, aceptando duplicados controlados en lugar de una transacción distribuida donde  se requeriría locking y protocolos como two-phase commit. La concurrencia se resuelve mediante bloqueo optimista en PostgreSQL + Inbox idempotente, evitando la sobrecomplejidad de un gestor de bloqueos distribuidos externo.
 
+### Consistencia
 Docker compose local usa un nodo RabbitMQ y no representa alta disponibilidad de producción. La
-consistencia eventual requiere recuperar dependencias y ejecutar replay de mensajes en DLQ (dead-letter queue) cuando
-corresponda.
+consistencia eventual requiere recuperar dependencias y ejecutar replay de mensajes en DLQ (dead-letter queue) cuando corresponda.
 
 ### Datos de prueba
 
@@ -161,7 +162,6 @@ Maven instalado:
 ```text
 mvn -B -ntp clean verify
 ```
-
 Ambas opciones requieren Java 26; el wrapper descarga Maven la primera vez. Docker es necesario para
 las suites con Testcontainers, Compose, Bruno y k6. El workflow principal separa contratos,
 unitarios, integración, imágenes, e2e, concurrencia y observabilidad; `quality-gate` exige que todas

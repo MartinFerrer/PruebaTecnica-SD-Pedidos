@@ -56,6 +56,7 @@ class IdempotencyIT {
 	}
 
 	@Test
+	@SuppressWarnings("unused")
 	void replayKeepsHistoricalCorrelationContentTypeAndBody() {
 		String key = UUID.randomUUID().toString();
 		IdempotencyExecutor.Reply first;
