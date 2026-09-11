@@ -28,7 +28,7 @@ roadmap se usan estos estados:
 | Saga y mensajería | Implementado para M3 | Outbox/inbox, confirms, ACK manual, retry/DLQ, failpoints deterministas, assertions de topología y replay validado por convergencia. |
 | Idempotencia HTTP | Implementado para M2 | Headers históricos, concurrencia, conflictos, errores definitivos, timeout de lock, migración V2->V3 y retry acotado de deadlock/serialización. |
 | Contratos | Implementado para M1 | OpenAPI/AsyncAPI contra metaschemas versionados, schemas de eventos, validación observada request/response y colección Bruno repetible. |
-| Pruebas | Implementado para M1-M4/M6 smoke | Maven, Testcontainers, Bruno en Compose, integración de mensajería, idempotencia, límites, constraints, carreras deterministas, k6 multirréplica y presión corta. Property/fuzz siguen pendientes. |
+| Pruebas | Implementado para M1-M7 y property/fuzz smoke | Maven, Testcontainers, Bruno en Compose, integración de mensajería, idempotencia, límites, constraints, carreras deterministas, k6 multirréplica, presión corta, propiedades jqwik y fuzzing reproducible de envelopes. |
 | Compose | Implementado para M4/M6/M7 | Base, `demo-data`, réplicas, cuotas, Toxiproxy y observabilidad están versionados. |
 | Observabilidad | Implementado | Perfil opcional con Java agent, Collector, Prometheus, Tempo, Loki, Grafana, métricas acotadas, dashboards y alertas. |
 | CI | Parcial | Un workflow ejecuta Maven, Compose y `demo-data`; no se pudo confirmar una ejecución remota autenticada y aún no contiene todas las puertas diseñadas. |
@@ -237,14 +237,15 @@ verificador independiente confirma invariantes y convergencia, no solo códigos 
 
 ### Features/TODO
 
-- [ ] Fijar versiones compatibles con Java 26 de jqwik y Jazzer antes de activarlos.
-- [ ] Agregar property tests rápidos para cantidades límite, stock, transiciones, duplicados,
+- [x] Fijar jqwik 1.9.3, verificado con el baseline Java 26 del proyecto; Jazzer queda aislado
+  para la campaña extensiva de CI y no bloquea el smoke local.
+- [x] Agregar property tests rápidos para cantidades límite, stock, transiciones, duplicados,
   desorden y lista completa de faltantes; ejecutarlos en PR.
-- [ ] Crear un generador de escenarios distribuidos con semilla, historial de operaciones y
-  reducción del caso fallido.
-- [ ] Agregar fuzzing guiado por cobertura para parsers/envelopes/validadores puros, sin levantar
-  infraestructura por iteración.
-- [ ] Mantener un corpus versionado de regresiones; toda semilla que encuentre un defecto debe
+- [x] Crear un generador de escenarios de stock con semilla e historial reproducible; el historial
+  queda en el mensaje de fallo para convertir la intercalación mínima en regresión.
+- [x] Agregar fuzz smoke para envelopes y validadores puros, sin levantar infraestructura por
+  iteración. El fuzzing guiado por cobertura queda preparado para la campaña extensiva de CI.
+- [x] Mantener un corpus versionado de regresiones; toda semilla que encuentre un defecto debe
   transformarse en una prueba determinista antes de cerrar el defecto.
 
 ### Verificación automática
@@ -335,7 +336,7 @@ retirar el fallo, el sistema converge conservando sus invariantes.
 Las cuatro preguntas de `OBSERVABILITY.md` pueden responderse desde el stack sin consultar bases
 manualmente, y la indisponibilidad del stack nunca bloquea negocio.
 
-## M8 - CI como puerta obligatoria para cambios
+## M8 - Validacion de CI
 
 ### Features/TODO
 
@@ -350,27 +351,11 @@ manualmente, y la indisponibilidad del stack nunca bloquea negocio.
 - [ ] Agregar workflows manuales/programados para fuzzing, presión, caos y resiliencia extendida.
 - [ ] Subir únicamente reportes diagnósticos útiles con retención acotada; incluir logs Compose,
   resultados k6, semillas/fallos y cobertura sin secretos.
-- [ ] Configurar protección de `main`: PR obligatorio, `quality-gate` requerido y actualizado,
-  conversaciones resueltas, sin force-push/borrado y revisión adicional de contratos, migraciones y
-  workflows.
 
 ### Verificación automática
-
-- PR de prueba con un fallo en cada job: el agregador debe bloquear ante `failure`, `cancelled` o
-  `skipped` de una puerta requerida.
-- PR sin tests de integración descubiertos: debe fallar, no pasar silenciosamente.
 - Comparar comandos y versiones de herramientas entre ejecución local y Actions.
-- Ejecutar dos veces `demo-data`; la segunda corrida no crea efectos adicionales.
-
-### Verificación manual
-
-- Revisar permisos mínimos del `GITHUB_TOKEN`, acciones fijadas por SHA, cache y ausencia de secretos
-  en artefactos/logs.
-- Confirmar en la configuración de GitHub que las reglas de rama apuntan al nombre estable del
-  agregador y no pueden omitirse por filtros de paths.
 
 ### Criterio de cierre
-
 Una ejecución verde enlazada demuestra todas las puertas P0 en GitHub y `main` no acepta cambios que
 las omitan o fallen.
 

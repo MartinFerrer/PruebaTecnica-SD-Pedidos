@@ -1,6 +1,6 @@
 # Diseño de CI/CD en GitHub
 
-Estado: **CI base implementado en `.github/workflows/ci.yaml`; CD y puertas adicionales pendientes**
+Estado: **CI base implementado en `.github/workflows/ci.yaml`; CD y campañas extensivas pendientes**
 
 El workflow actual invoca `java scripts/Verify.java` con suites estables en una matriz de
 `ubuntu-latest` y `windows-latest`: ambos runners ejecutan el mismo alcance y el runner usa comandos
@@ -8,8 +8,8 @@ portables (Maven Wrapper/local Maven y `docker compose`) para unitarios, integra
 cobertura, advertencias de Checkstyle, validación de Compose y arranque base. El formato sigue
 sujeto a revisión manual en los cambios; Checkstyle informa problemas básicos sin bloquear el build.
 No se ha ejecutado remotamente aún. Las secciones
-siguientes mantienen el diseño objetivo; análisis de seguridad adicionales, fuzzing y publicación
-en GHCR todavía no están implementados. Ver
+siguientes mantienen el diseño objetivo; análisis de seguridad adicionales, fuzzing guiado por
+cobertura extensivo y publicación en GHCR todavía no están implementados. Ver
 [evidencia y pendientes](../testing/IMPLEMENTATION-VERIFICATION.md) y la
 [guía de estilo](../development/CODE-STYLE.md). El orden de implementación, pruebas automáticas,
 validaciones manuales y criterios de cierre se mantienen en el
@@ -48,7 +48,10 @@ Jobs propuestos:
 7. `observability-smoke`: levanta el perfil opcional, comprueba healthchecks y valida que Prometheus descubra las apps y RabbitMQ.
 8. `quality-gate`: agrega resultados para protección de `main`; falla ante un job requerido fallido, cancelado u omitido. No usar filtros que omitan silenciosamente pruebas requeridas de un cambio de comportamiento.
 
-Los property tests rápidos forman parte de `unit`. El fuzzing largo y la degradación severa de recursos no bloquean cada PR porque consumirían demasiado tiempo, pero cualquier semilla de regresión descubierta sí se agrega a la suite obligatoria.
+Los property tests rápidos y el fuzz smoke reproducible forman parte de la puerta de PR mediante
+`java scripts/Verify.java property` y `java scripts/Verify.java fuzz`. El fuzzing guiado por
+cobertura largo y la degradación severa de recursos no bloquean cada PR porque consumirían demasiado
+tiempo, pero cualquier semilla de regresión descubierta sí se agrega a la suite obligatoria.
 
 Se guardan reportes de tests, cobertura, logs de Compose y resultados k6 solo cuando ayudan a diagnóstico. No se suben secretos ni dumps con datos sensibles.
 

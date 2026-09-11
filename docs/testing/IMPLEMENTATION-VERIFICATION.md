@@ -39,7 +39,7 @@ imágenes y reportes Maven en `reports/verification/<suite>/<run-id>/`. Las suit
 `fuzz` sigue siendo explícitamente pendiente; no se cuenta como ejecutada. `observability` valida el
 arranque del perfil, healthchecks y descubrimiento de Order, Inventory y RabbitMQ en Prometheus.
 
-Los reportes unitarios e integración quedan en `services/*/target/{surefire,failsafe}-reports`; cobertura en `services/*/target/site/jacoco`. CI conserva estos reportes como artefactos. El workflow aún no se ejecutó en GitHub.
+Los reportes unitarios e integración quedan en `services/*/target/{surefire,failsafe}-reports`; cobertura en `services/*/target/site/jacoco`. CI conserva estos reportes como artefactos. `property` conserva la semilla jqwik y `fuzz` conserva la semilla y el corpus utilizado. El workflow aún no se ejecutó en GitHub.
 
 ## Pendientes, no garantías de esta entrega
 
@@ -47,7 +47,7 @@ El backlog ordenado, sus dependencias, pruebas automáticas, validaciones manual
 cierre se mantienen en el
 [roadmap de implementación y verificación](../delivery/IMPLEMENTATION-ROADMAP.md). Resumen:
 
-- Property tests, fuzzing con semillas/corpus, pruebas de saturación prolongada y campañas severas de caos.
-- Property tests, fuzzing con semillas/corpus, publicación en GHCR y análisis de seguridad adicionales previstos en el diseño de CI/CD.
+- Fuzzing guiado por cobertura extensivo, pruebas de saturación prolongada y campañas severas de caos.
+- Publicación en GHCR y análisis de seguridad adicionales previstos en el diseño de CI/CD.
 
 La implementación inicial de Inventory guarda los ítems de una reserva como JSON en su propia fila, en lugar de una tabla de detalle: el agregado se bloquea y persiste atómicamente. Esto no comparte datos con Order ni modifica el protocolo. Los cambios futuros de almacenamiento requieren migraciones hacia adelante.

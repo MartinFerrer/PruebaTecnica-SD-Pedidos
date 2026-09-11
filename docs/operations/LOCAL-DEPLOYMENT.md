@@ -8,7 +8,7 @@ Con Docker Desktop en modo Linux, copiar `.env.example` a `.env`, establecer con
 
 La verificación mínima multiplataforma es `docker compose config --quiet` seguido de `docker compose up --build --wait --wait-timeout 180`. Las pruebas de carga y recursos limitados usadas durante el bootstrap fueron scripts locales no versionados; este despliegue base no pretende demostrar agotamiento de memoria ni degradación de red.
 
-## Verificación rápida desde Postman
+## Verificación rápida desde Postman / otro Endpoint tester
 
 Después de que los servicios estén saludables, se pueden probar directamente:
 

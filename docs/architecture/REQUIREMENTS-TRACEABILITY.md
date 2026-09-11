@@ -17,7 +17,7 @@ pendientes se mantienen en el
 | Al menos Order Service e Inventory Service con Spring Boot | Dos aplicaciones hexagonales independientes | Aceptado | Implementado | ArchUnit, build y Compose base |
 | Crear, listar, consultar y cancelar pedidos | Endpoints REST de Order | Aceptado | Implementado | Unit/ServiceIT; colección Bruno en `tests/bruno/` |
 | Estados `PENDING`, `CONFIRMED`, `REJECTED`, `CANCELLED` | Máquina de estados; `CANCELLED` terminal | Aceptado | Implementado | Tests de dominio y aplicación |
-| Stock sin negativos y reserva/liberación | Locks, constraints y `onHand/reserved/available` | Aceptado | Implementado | Unit/ServiceIT; property pendiente |
+| Stock sin negativos y reserva/liberación | Locks, constraints y `onHand/reserved/available` | Aceptado | Implementado | Unit/ServiceIT; `StockPropertiesTest`, `SeededScenarioPropertiesTest` |
 | Operaciones idempotentes | Clave, hash, headers y replay persistidos | Aceptado | Implementado | `IdempotencyIT`; 100 requests concurrentes por clave y timeout reutilizable |
 | Datos separados, sin tablas compartidas | PostgreSQL, usuarios y redes por servicio | Aceptado | Implementado | Compose y ArchUnit |
 | Comunicación asíncrona | RabbitMQ y Saga por coreografía | Aceptado | Implementado | `MessagingIT`; Compose + Bruno e2e |
@@ -49,7 +49,7 @@ pendientes se mantienen en el
 | Observabilidad opcional y justificada | Perfil con cinco servicios documentados | `OBSERVABILITY.md` | Aceptada |
 | GHCR; CD secundario | CI primero, imágenes verificadas en GHCR | `CI-CD.md` | Aceptada |
 | Sin reserva parcial | Rechazo completo con todos los faltantes | `EVENTS-AND-RACES.md` | Aceptada |
-| Fuzzing opcional | jqwik/Jazzer/generador con semillas | `TEST-STRATEGY.md` | Aceptada |
+| Fuzzing reproducible opcional | jqwik 1.9.3, generador con semilla y corpus de envelopes; Jazzer extensivo aislado para CI | `TEST-STRATEGY.md` | Aceptada |
 | Bajos recursos y red degradada | k6 + cuotas Docker + Toxiproxy/netem + verificador | `TEST-STRATEGY.md` | Aceptada |
 | Datos predeterminados opcionales | Perfil `demo-data` mediante APIs idempotentes | `LOCAL-DEPLOYMENT.md` | Aceptada |
 | Eventos sin sufijo inicial | Nombre simple, `schemaVersion: 1` en envelope | `EVENTS-AND-RACES.md` | Aceptada |

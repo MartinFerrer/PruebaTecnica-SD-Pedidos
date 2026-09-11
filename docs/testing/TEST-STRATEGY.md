@@ -35,13 +35,13 @@ La primera capa de la estrategia ya está activa:
 - checks estructurales iniciales de OpenAPI/AsyncAPI, incluido el path singular de reposición;
 - aceptación Compose mediante `demo-data`, ejecutada dos veces por CI para probar replay idempotente.
 
-La validación completa contra metaschemas, Bruno, k6 multirréplica y Toxiproxy está versionada en las puertas correspondientes; property tests y fuzzing con semilla continúan como incrementos siguientes.
+La validación completa contra metaschemas, Bruno, k6 multirréplica y Toxiproxy está versionada en las puertas correspondientes. Las propiedades jqwik y el fuzz smoke reproducible de envelopes ya forman parte de la verificación rápida; el fuzzing guiado por cobertura extensivo queda para el workflow manual/programado de CI.
 
 ### Configuración de ejecución
 
 Maven Surefire ejecuta `*Test` (unit, ArchUnit y propiedades rápidas); Failsafe ejecuta `*IT` en `integration-test` y comprueba resultados en `verify`. Los módulos con suites obligatorias fallan si no se descubren pruebas. No usar `-DskipTests`, exclusiones silenciosas ni perfiles que hagan pasar CI sin integración. El reactor raíz solo agrega módulos y configuración común: no necesita pruebas vacías.
 
-JaCoCo aplica cobertura a dominio/aplicación y publica reportes; no se excluye lógica para alcanzar el umbral. Se fija la compatibilidad con Java 26 de plugins, Mockito, jqwik y Jazzer antes de usarlos. ArchUnit comprueba dominio/aplicación sin Spring/JPA/AMQP, adaptadores dependientes de puertos y cero referencias Java entre servicios. Tests de rollback verifican que el decorador transaccional envuelva también inbox, idempotencia y outbox usando la misma conexión por servicio.
+JaCoCo aplica cobertura a dominio/aplicación y publica reportes; no se excluye lógica para alcanzar el umbral. Se fija la compatibilidad con Java 26 de plugins, Mockito y jqwik antes de usarlos. Jazzer queda reservado a la campaña extensiva hasta verificar una versión compatible con el runner de Java 26. ArchUnit comprueba dominio/aplicación sin Spring/JPA/AMQP, adaptadores dependientes de puertos y cero referencias Java entre servicios. Tests de rollback verifican que el decorador transaccional envuelva también inbox, idempotencia y outbox usando la misma conexión por servicio.
 
 ## TDD
 
@@ -136,7 +136,7 @@ El fuzzing extensivo es opcional y se ejecuta mediante un perfil separado, de fo
 
 - **jqwik:** propiedades rápidas del dominio y de la máquina de estados. Genera cantidades límite, pedidos multítem, secuencias de crear/reservar/cancelar/actualizar y reduce el caso al ejemplo mínimo cuando falla.
 - **Generador con semilla:** produce duplicados, reordenamientos, demoras y combinaciones de estados para integración, incluidas reposiciones y reconteos. Guarda semilla, historial de operaciones, fallos inyectados y versiones/estados observados. La semilla sola no reproduce el scheduler distribuido: se reduce el historial y se convierte la intercalación fallida en una regresión con barreras controladas.
-- **Jazzer:** perfil opcional de fuzzing guiado por cobertura para parsers/envelopes, validadores y transiciones puras. No se conecta a infraestructura en cada iteración.
+- **Jazzer:** superficie prevista para el perfil opcional de fuzzing guiado por cobertura de CI. El smoke local actual usa un generador JDK sembrado sobre envelopes, sin infraestructura por iteración.
 - **k6 aleatorio:** combina cantidades, tiempos entre requests y distribución de endpoints para carga end-to-end, siempre con semilla conocida y un verificador final determinista.
 
 Propiedades invariantes:
@@ -195,7 +195,7 @@ El smoke obligatorio en PR aplica cuotas calibradas al runner, carga acotada y a
 - Cero pruebas omitidas sin ticket/justificación.
 - Validación de OpenAPI, AsyncAPI y Docker Compose.
 - Smoke concurrente y de recursos limitados en cada pull request; estrés extendido programado o manual para evitar CI inestable.
-- Property tests rápidos en PR; fuzzing extensivo y caos de red mediante workflows programados/manuales.
+- Property tests y fuzz smoke rápidos en PR; fuzzing guiado por cobertura extensivo y caos de red mediante workflows programados/manuales.
 
 `jcstress` solo se añadirá si aparece lógica lock-free dentro de la JVM. No sustituye las pruebas reales contra PostgreSQL y múltiples procesos.
 
@@ -209,12 +209,13 @@ La interfaz estable desde el root está en `java scripts/Verify.java`, con wrapp
 - contratos: `java scripts/Verify.java contracts`;
 - aceptación: `java scripts/Verify.java acceptance`;
 - concurrencia: `java scripts/Verify.java concurrency`;
-- fuzzing extensivo: `java scripts/Verify.java fuzz`, conservando corpus y semillas cuando esté implementado;
+- property tests: `java scripts/Verify.java property --seed local-m5`;
+- fuzz smoke: `java scripts/Verify.java fuzz --seed local-m5`, conservando corpus y semilla;
 - recursos limitados: `java scripts/Verify.java constrained`;
 - caos de red: `java scripts/Verify.java chaos`;
 - limpieza: `java scripts/Verify.java clean`, detiene Compose sin eliminar volúmenes.
 
-Las suites aún no implementadas terminan con error explícito y un reporte `SUITE_NOT_IMPLEMENTED`.
-Esto evita que una puerta pase silenciosamente sin descubrir pruebas.
+Las suites sin implementación terminan con error explícito y un reporte `SUITE_NOT_IMPLEMENTED`.
+La puerta `property`/`fuzz` además falla si Maven no descubre las clases esperadas.
 
 Los workflows de GitHub invocarán esos mismos comandos; la lógica no se duplicará en YAML.

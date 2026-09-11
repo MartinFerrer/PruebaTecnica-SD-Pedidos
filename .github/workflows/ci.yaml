@@ -34,6 +34,10 @@ jobs:
         run: java scripts/Verify.java acceptance
       - name: Concurrency and replica smoke
         run: java scripts/Verify.java concurrency --seed ci-${{ github.run_id }}
+      - name: Property tests
+        run: java scripts/Verify.java property --seed ci-${{ github.run_id }}
+      - name: Fuzz smoke
+        run: java scripts/Verify.java fuzz --seed ci-${{ github.run_id }}
       - name: Constrained resource smoke
         run: java scripts/Verify.java constrained --seed ci-${{ github.run_id }}
       - name: Observability smoke

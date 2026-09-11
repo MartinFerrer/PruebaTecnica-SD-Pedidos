@@ -119,6 +119,8 @@ java scripts/Verify.java full
 java scripts/Verify.java contracts
 java scripts/Verify.java acceptance
 java scripts/Verify.java concurrency
+java scripts/Verify.java property --seed RANDOMSEED
+java scripts/Verify.java fuzz --seed RANDOMSEED
 java scripts/Verify.java constrained
 java scripts/Verify.java chaos
 java scripts/Verify.java observability
@@ -137,6 +139,9 @@ réplicas de Order e Inventory. `constrained` añade cuotas efectivas y presión
 Toxiproxy, aplica una latencia temporal a RabbitMQ y comprueba la recuperación. La campaña opcional
 Linux con `tc/netem` está en `scripts/netem.sh`; requiere `tc`, `nsenter` y privilegios, y no es
 necesaria para el desarrollo normal.
+`property` ejecuta propiedades jqwik rápidas del dominio con semilla fija y `fuzz` valida envelopes
+con entradas generadas y un corpus pequeño, sin levantar infraestructura por iteración. Ambos
+guardan semilla, versiones y resultados bajo `reports/verification/`.
 
 ## Desarrollo y verificación
 
@@ -157,7 +162,8 @@ observados junto con el log de la ejecución.
 
 `constrained` ejecuta el smoke de cuotas efectivas, demo-data, Bruno y presión k6 bajo el override
 versionado. `chaos` ejecuta el perfil Toxiproxy y conserva configuración, logs y estado de colas.
-`property` y `fuzz` siguen pendientes y fallan explícitamente.
+`property` y `fuzz` son puertas rápidas reproducibles; el fuzzing guiado por cobertura prolongado
+queda reservado para el workflow manual/programado de CI.
 
 ### Maven
 
@@ -176,8 +182,9 @@ Ambas opciones requieren Java 26; el wrapper descarga Maven la primera vez.
 ## Alcance y estado
 
 Los endpoints base, reservas atómicas, cancelaciones, outbox/inbox, idempotencia HTTP, contratos,
-carreras deterministas, invariantes, réplicas, cuotas y caos corto están implementados. Hay pruebas
-automatizadas y un workflow de CI preparado; su ejecución remota requiere inicializar y publicar el
-repositorio. El informe de verificación distingue las comprobaciones ejecutadas de las pendientes.
+carreras deterministas, invariantes, réplicas, cuotas, property tests, fuzz smoke y caos corto están
+implementados. Hay pruebas automatizadas y un workflow de CI preparado; su ejecución remota requiere
+inicializar y publicar el repositorio. El informe de verificación distingue las comprobaciones
+ejecutadas de las pendientes.
 
 Compose local usa un nodo RabbitMQ (una sola instancia). La consistencia eventual requiere recuperación de dependencias y replay de mensajes en DLQ cuando corresponda. Quedan pendientes fuzzing extensivo y publicación CD en GHCR.

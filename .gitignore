@@ -20,3 +20,4 @@ Thumbs.db
 # Resultados de pruebas futuros
 reports/
 test-results/
+**/.jqwik-database

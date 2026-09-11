@@ -163,8 +163,8 @@ public final class Verify {
 			}
 			case "acceptance" -> runAcceptance();
 			case "clean" -> runClean();
-			case "property" -> markPending("No existe todavía un perfil de property tests");
-			case "fuzz" -> markPending("No existe todavía un perfil de fuzzing con semillas/corpus");
+			case "property" -> runProperty();
+			case "fuzz" -> runFuzz();
 			case "constrained" -> runConstrained();
 			case "chaos" -> runChaos();
 			case "observability" -> runObservability();
@@ -176,6 +176,20 @@ public final class Verify {
 		clearMavenReports();
 		List<String> command = mavenCommand(arguments);
 		runStep("maven", command, false);
+	}
+
+	private void runProperty() throws IOException {
+		runMaven(List.of("-Dproperty.seed=" + deterministicSeed(), "-Djqwik.seed=" + deterministicSeed(),
+				"-Dtest=*PropertiesTest", "test"));
+	}
+
+	private void runFuzz() throws IOException {
+		runMaven(List.of("-pl", "services/shared-library", "-am", "-Dfuzz.seed=" + deterministicSeed(),
+				"-Dtest=EnvelopeFuzzTest", "test"));
+	}
+
+	private String deterministicSeed() {
+		return Long.toString(seed == null ? 20260911L : seed.hashCode());
 	}
 
 	private void runClean() throws IOException {
@@ -450,7 +464,7 @@ public final class Verify {
 	}
 
 	private void finish() throws IOException {
-		if (Set.of("quick", "full", "contracts", "concurrency").contains(suite)) {
+		if (Set.of("quick", "full", "contracts", "concurrency", "property", "fuzz").contains(suite)) {
 			Map<String, Integer> summary = collectMavenReports();
 			validateExpectedTests(summary);
 		}
@@ -561,6 +575,12 @@ public final class Verify {
 						.allMatch(test -> files.stream().anyMatch(file -> file.contains(test)));
 			case "contracts" -> List.of("platform.ContractTest", "EventContractTest").stream()
 					.allMatch(test -> files.stream().anyMatch(file -> file.contains(test)));
+			case "property" -> summary.get("surefireTests") > 0
+					&& List.of("MessagePropertiesTest", "OrderPropertiesTest", "StockPropertiesTest",
+							"SeededScenarioPropertiesTest").stream()
+							.allMatch(test -> files.stream().anyMatch(file -> file.contains(test)));
+			case "fuzz" -> summary.get("surefireTests") > 0
+					&& files.stream().anyMatch(file -> file.contains("EnvelopeFuzzTest"));
 			default -> true;
 		};
 		if (!expected) {
