@@ -25,6 +25,118 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
+            }
+          },
+          "503": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "1"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
             }
           }
         }
@@ -177,24 +289,176 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              },
+              "Location": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Ruta del pedido creado; persiste en replay."
+              }
             }
           },
-          "default": {
-            "description": "Problem Details: 400 inválido, 404 inexistente, 409 conflicto, 503 transitorio con Retry-After.",
+          "413": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": false,
                   "required": [
                     "type",
                     "title",
-                    "status"
-                  ]
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
+            }
+          },
+          "503": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "1"
                 }
               }
             }
+          },
+          "default": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
+            }
           }
-        }
+        },
+        "x-max-request-body-bytes": 65536
       }
     },
     "/orders/{orderId}": {
@@ -305,20 +569,117 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
             }
           },
-          "default": {
-            "description": "Problem Details: 400 inválido, 404 inexistente, 409 conflicto, 503 transitorio con Retry-After.",
+          "503": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": false,
                   "required": [
                     "type",
                     "title",
-                    "status"
-                  ]
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
                 }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "1"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
               }
             }
           }
@@ -461,6 +822,17 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
             }
           },
           "202": {
@@ -556,24 +928,169 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
             }
           },
-          "default": {
-            "description": "Problem Details: 400 inválido, 404 inexistente, 409 conflicto, 503 transitorio con Retry-After.",
+          "413": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": false,
                   "required": [
                     "type",
                     "title",
-                    "status"
-                  ]
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
+            }
+          },
+          "503": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "1"
                 }
               }
             }
+          },
+          "default": {
+            "description": "Problem Details estable; 503 transitorio permite reintentar la misma clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "description": "Correlación original en respuestas idempotentes; histórica en replay."
+              }
+            }
           }
-        }
+        },
+        "x-max-request-body-bytes": 65536
       }
     }
   },
@@ -581,18 +1098,42 @@
     "schemas": {
       "OrderView": {
         "type": "object",
-        "required": ["orderId", "status", "items"],
+        "required": [
+          "orderId",
+          "status",
+          "items"
+        ],
         "properties": {
-          "orderId": { "type": "string", "format": "uuid" },
-          "status": { "enum": ["PENDING", "CONFIRMED", "REJECTED", "CANCELLED"] },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "REJECTED",
+              "CANCELLED"
+            ]
+          },
           "items": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["productId", "quantity"],
+              "required": [
+                "productId",
+                "quantity"
+              ],
               "properties": {
-                "productId": { "type": "string", "format": "uuid" },
-                "quantity": { "type": "integer", "minimum": 1, "maximum": 1000000000 }
+                "productId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000000000
+                }
               }
             }
           },
@@ -600,19 +1141,51 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["productId", "requested", "available", "reason"],
+              "required": [
+                "productId",
+                "requested",
+                "available",
+                "reason"
+              ],
               "properties": {
-                "productId": { "type": "string", "format": "uuid" },
-                "requested": { "type": "integer", "minimum": 1 },
-                "available": { "type": "integer", "minimum": 0 },
-                "reason": { "type": "string" }
+                "productId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requested": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "available": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "reason": {
+                  "type": "string"
+                }
               }
             }
           },
-          "inventoryCancellationStatus": { "enum": ["PENDING", "COMPLETED"] },
-          "statusUrl": { "type": "string" }
+          "inventoryCancellationStatus": {
+            "enum": [
+              "PENDING",
+              "COMPLETED"
+            ]
+          },
+          "statusUrl": {
+            "type": "string"
+          }
         }
       }
     }
+  },
+  "x-runtime-limits": {
+    "requestBodyBytes": 65536,
+    "messageBytes": 262144,
+    "databaseLockTimeoutSeconds": 3,
+    "transactionTimeoutSeconds": 15,
+    "publisherConfirmTimeoutSeconds": 5,
+    "connectionTimeoutSeconds": 5,
+    "deadlockAttempts": 3
   }
 }

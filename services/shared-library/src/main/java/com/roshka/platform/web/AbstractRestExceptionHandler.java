@@ -18,6 +18,20 @@ public abstract class AbstractRestExceptionHandler {
 		this.transactions = transactions;
 	}
 
+	@org.springframework.web.bind.annotation.InitBinder
+	public void bindCanonicalUuid(org.springframework.web.bind.WebDataBinder binder) {
+		binder.registerCustomEditor(java.util.UUID.class, new java.beans.PropertyEditorSupport() {
+			@Override
+			public void setAsText(String text) {
+				var id = java.util.UUID.fromString(text);
+				if (!id.toString().equalsIgnoreCase(text)) {
+					throw new IllegalArgumentException("INVALID_UUID");
+				}
+				setValue(id);
+			}
+		});
+	}
+
 	@ExceptionHandler({ org.springframework.web.bind.MethodArgumentNotValidException.class,
 			org.springframework.http.converter.HttpMessageNotReadableException.class,
 			org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,

@@ -1,0 +1,15 @@
+meta {
+  name: 11-products
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{inventoryUrl}}/products
+  body: none
+  auth: none
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(200));
+}

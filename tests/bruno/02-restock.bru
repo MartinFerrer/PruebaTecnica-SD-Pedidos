@@ -1,0 +1,28 @@
+meta {
+  name: 02-restock
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{inventoryUrl}}/products/{{productId}}/restock
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-restock
+}
+
+body:json {
+  {
+    "movementId": "{{movementId}}",
+    "quantity": 2,
+    "reason": "BRUNO"
+  }
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(201));
+}

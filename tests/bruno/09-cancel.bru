@@ -1,0 +1,26 @@
+meta {
+  name: 09-cancel
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{orderUrl}}/orders/{{cancelledId}}/cancel
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-cancel
+}
+
+body:json {
+  {
+    "reason": "BRUNO"
+  }
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(202));
+}

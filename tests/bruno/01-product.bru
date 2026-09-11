@@ -1,0 +1,32 @@
+meta {
+  name: 01-product
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{inventoryUrl}}/products
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-product
+}
+
+body:json {
+  {
+    "sku": "bruno-{{runId}}",
+    "name": "Bruno product",
+    "initialStock": 5
+  }
+}
+
+script:post-response {
+  bru.setVar('productId', res.getBody().productId);
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(201));
+}

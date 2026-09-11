@@ -63,6 +63,27 @@ docker compose --profile demo-data run --build --rm demo-data
 El comando usa únicamente las APIs públicas, verifica la convergencia y puede repetirse sin crear
 operaciones adicionales ni volver a sumar stock.
 
+## Verificación reproducible
+
+Las puertas multiplataforma se ejecutan desde el root con Java 26, sin PowerShell ni scripts locales:
+
+```text
+java scripts/Verify.java quick
+java scripts/Verify.java full
+java scripts/Verify.java contracts
+java scripts/Verify.java acceptance
+java scripts/Verify.java constrained
+```
+
+En Windows también están disponibles `scripts/verify.cmd`; en Linux/macOS, `scripts/verify.sh`.
+El wrapper incluido usa Maven 3.9.16; alternativamente puede usarse Maven instalado con
+`mvn -B -ntp clean verify`. Cada ejecución deja versiones, configuración, límites, resultados y
+logs sanitizados en `reports/verification/<suite>/<run-id>/`.
+
+La colección Bruno versionada cubre los endpoints, errores y las transiciones de la Saga:
+[tests/bruno/README.md](tests/bruno/README.md). El replay controlado de DLQ está documentado en
+[DLQ-REPLAY.md](docs/operations/DLQ-REPLAY.md).
+
 ## RabbitMQ: elección y garantía de entrega
 
 Se eligió RabbitMQ porque el sistema necesita comunicación asíncrona operacional entre pocos servicios, routing, acknowledgements, reintentos y dead-letter queues. No requiere el throughput, la retención extensa ni las capacidades de streaming de Kafka; RabbitMQ también reduce el consumo de recursos y la complejidad del despliegue solicitado. Factores concretos de la implementación.
@@ -88,8 +109,13 @@ En Windows también se puede usar `scripts\verify.cmd quick`, `scripts\verify.cm
 `scripts\verify.cmd acceptance`; en POSIX, `sh scripts/verify.sh quick` usa el mismo runner.
 Cada ejecución deja metadata, logs sanitizados y resultados en
 `reports/verification/<suite>/<run-id>/`. Las suites `property`, `fuzz`, `constrained` y
-`chaos` fallan explícitamente hasta que sus arneses se implementen; no se presentan como pruebas
-ejecutadas.
+`chaos` siguen pendientes y fallan explícitamente; `constrained` sí se ejecuta como smoke versionado
+El smoke `constrained` queda automatizado y las suites `property`, `fuzz` y `chaos` siguen pendientes.
+
+### Estado de las suites
+
+`constrained` ejecuta el smoke de cuotas efectivas, demo-data y Bruno bajo el override versionado.
+`property`, `fuzz` y `chaos` siguen pendientes y fallan explícitamente.
 
 ### Maven
 
@@ -107,6 +133,6 @@ Ambas opciones requieren Java 26; el wrapper descarga Maven la primera vez.
 
 ## Alcance y estado
 
-Los endpoints base, reservas atómicas, cancelaciones, outbox/inbox, idempotencia y el dataset de demostración están implementados. Hay pruebas automatizadas y un workflow de CI preparado; su ejecución remota requiere inicializar y publicar el repositorio. El informe de verificación distingue las comprobaciones ejecutadas de las pendientes.
+Los endpoints base, reservas atómicas, cancelaciones, outbox/inbox, idempotencia HTTP, contratos y replay de DLQ están implementados para los hitos M1-M3. Hay pruebas automatizadas y un workflow de CI preparado; su ejecución remota requiere inicializar y publicar el repositorio. El informe de verificación distingue las comprobaciones ejecutadas de las pendientes.
 
 Compose local usa un nodo RabbitMQ y no ofrece HA. La consistencia eventual requiere recuperación de dependencias y replay de mensajes en DLQ cuando corresponda. Autenticación, pagos y despacho quedan fuera del alcance; no exponer este despliegue de desarrollo a Internet. Quedan pendientes los perfiles de observabilidad y caos de red, fuzzing extensivo y publicación CD en GHCR.

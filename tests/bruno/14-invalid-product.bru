@@ -1,0 +1,24 @@
+meta {
+  name: 14-invalid-product
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{inventoryUrl}}/products
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-invalid
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(400));
+}

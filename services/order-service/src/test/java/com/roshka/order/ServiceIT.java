@@ -20,6 +20,83 @@ import tools.jackson.databind.json.JsonMapper;
 class ServiceIT {
 
 	@Test
+	void migrationUpgradesHistoricalOrderResponsesWithoutLosingLocation() {
+		var source = app.getBean(javax.sql.DataSource.class);
+		var migrations = org.flywaydb.core.Flyway.configure().dataSource(source)
+			.schemas("upgrade_test").defaultSchema("upgrade_test").locations("classpath:db/migration");
+		migrations.target("2").load().migrate();
+		var db = app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class);
+		UUID id = UUID.randomUUID();
+		db.sql("INSERT INTO upgrade_test.http_idempotency VALUES ('create-order','legacy','hash',202,:body)")
+			.param("body", "{\"orderId\":\"" + id + "\",\"status\":\"PENDING\"}").update();
+		org.flywaydb.core.Flyway.configure().dataSource(source).schemas("upgrade_test")
+			.defaultSchema("upgrade_test").locations("classpath:db/migration").load().migrate();
+		assertThat(db.sql("SELECT headers->>'Location' FROM upgrade_test.http_idempotency")
+			.query(String.class).single()).isEqualTo("/orders/" + id);
+	}
+
+	@Test
+	void databaseRejectsDuplicateLinesAndQuantityLimits() throws Exception {
+		String order = createOrder();
+		var db = app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class);
+		org.assertj.core.api.Assertions.assertThatThrownBy(() -> db.sql("""
+				INSERT INTO order_items SELECT order_id,product_id,quantity FROM order_items WHERE order_id=:id
+				""").param("id", UUID.fromString(order)).update())
+			.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		for (long quantity : new long[] { 0, -1, 1000000001L }) {
+			org.assertj.core.api.Assertions.assertThatThrownBy(() -> db.sql(
+					"UPDATE order_items SET quantity=:quantity WHERE order_id=:id")
+				.param("quantity", quantity).param("id", UUID.fromString(order)).update())
+				.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		}
+	}
+
+	@Test
+	void rejectsMalformedUnknownOversizedAndInvalidRequests() throws Exception {
+		for (String body : java.util.List.of("", "{", "{}", "{\"items\":[]}",
+				"{\"items\":[],\"unknown\":1}",
+				"{\"items\":[{\"productId\":\"not-a-uuid\",\"quantity\":1}]}")) {
+			assertThat(request("POST", "/orders", UUID.randomUUID().toString(), body).statusCode()).isEqualTo(400);
+		}
+		assertThat(request("POST", "/orders", UUID.randomUUID().toString(), " ".repeat(65537)).statusCode())
+			.isEqualTo(413);
+		assertThat(request("GET", "/orders/1-1-1-1-1", "read", null).statusCode()).isEqualTo(400);
+		assertThat(request("GET", "/orders/" + UUID.randomUUID(), "read", null).statusCode()).isEqualTo(404);
+		assertThat(request("POST", "/orders/" + UUID.randomUUID() + "/cancel", UUID.randomUUID().toString(),
+				"{\"reason\":\"" + "a".repeat(201) + "\"}").statusCode()).isEqualTo(400);
+	}
+
+	@Test
+	void sameKeyOneHundredHttpRequestsHaveOneOrderAndHistoricalHeaders() throws Exception {
+		String key = UUID.randomUUID().toString();
+		String body = "{\"items\":[{\"productId\":\"" + UUID.randomUUID() + "\",\"quantity\":1}]}";
+		var start = new java.util.concurrent.CountDownLatch(1);
+		try (var pool = java.util.concurrent.Executors.newFixedThreadPool(16)) {
+			var tasks = new java.util.ArrayList<java.util.concurrent.Future<HttpResponse<String>>>();
+			for (int i = 0; i < 100; i++) {
+				tasks.add(pool.submit(() -> {
+					start.await();
+					return request("POST", "/orders", key, body);
+				}));
+			}
+			start.countDown();
+			var first = tasks.getFirst().get();
+			for (var task : tasks) {
+				var replay = task.get(30, java.util.concurrent.TimeUnit.SECONDS);
+				assertThat(replay.statusCode()).isEqualTo(202);
+				assertThat(replay.body()).isEqualTo(first.body());
+				for (String header : java.util.List.of("Location", "Content-Type", "X-Correlation-Id")) {
+					assertThat(replay.headers().firstValue(header)).isEqualTo(first.headers().firstValue(header));
+				}
+			}
+			var db = app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class);
+			String id = JSON.readTree(first.body()).path("orderId").asString();
+			assertThat(db.sql("SELECT count(*) FROM message_outbox WHERE event_type='OrderCreated' AND body LIKE :id")
+				.param("id", "%" + id + "%").query(Long.class).single()).isEqualTo(1);
+		}
+	}
+
+	@Test
 	void listsAllOrders() throws Exception {
 		String first = createOrder();
 		String second = createOrder();
@@ -94,20 +171,30 @@ class ServiceIT {
 	@AfterAll
 	static void stop() {
 		if (app != null) {
-			app.close();
+			try {
+				app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class)
+					.sql("SELECT body FROM message_outbox").query(String.class).list()
+					.forEach(body -> com.roshka.platform.messaging.EventContract.validate(JSON.readTree(body)));
+			}
+			finally {
+				app.close();
+			}
 		}
 		BROKER.stop();
 		DB.stop();
 	}
 
 	static HttpResponse<String> request(String method, String path, String key, String body) throws Exception {
-		return HTTP.send(HttpRequest.newBuilder(URI.create(base + path))
+		var response = HTTP.send(HttpRequest.newBuilder(URI.create(base + path))
 			.timeout(Duration.ofSeconds(15))
 			.header("Content-Type", "application/json")
 			.header("Idempotency-Key", key)
 			.method(method,
 					body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body))
 			.build(), HttpResponse.BodyHandlers.ofString());
+		com.roshka.testing.ObservedContract.response("order", method, path, response);
+		com.roshka.testing.ObservedContract.request("order", method, path, body, response.statusCode());
+		return response;
 	}
 
 	@Test

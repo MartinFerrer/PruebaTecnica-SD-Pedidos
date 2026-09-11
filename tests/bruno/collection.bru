@@ -1,0 +1,25 @@
+meta {
+  name: Order Inventory acceptance
+}
+
+script:pre-request {
+  const crypto = require('crypto');
+  const run = bru.getEnvVar('runId');
+  const hex = crypto.createHash('sha256').update(run + '-restock').digest('hex');
+  bru.setVar('movementId', hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-4' + hex.slice(13, 16)
+    + '-a' + hex.slice(17, 20) + '-' + hex.slice(20, 32));
+}
+
+tests {
+  test('Every response carries correlation', () => {
+    expect(res.getHeader('x-correlation-id')).to.be.a('string').and.not.empty;
+  });
+  if (res.getStatus() >= 400) {
+    test('Stable Problem Details', () => {
+      expect(res.getHeader('content-type')).to.include('application/problem+json');
+      expect(res.getBody().type).to.equal('about:blank');
+      expect(res.getBody().status).to.equal(res.getStatus());
+      expect(res.getBody().code).to.be.a('string').and.not.empty;
+    });
+  }
+}

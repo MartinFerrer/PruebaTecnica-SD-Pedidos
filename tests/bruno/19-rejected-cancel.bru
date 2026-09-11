@@ -1,0 +1,24 @@
+meta {
+  name: 19-rejected-cancel
+  type: http
+  seq: 19
+}
+
+post {
+  url: {{orderUrl}}/orders/{{rejectedId}}/cancel
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-reject-cancel
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(409));
+}

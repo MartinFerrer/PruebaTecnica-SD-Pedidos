@@ -1,0 +1,20 @@
+meta {
+  name: 12-stock
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{inventoryUrl}}/products/{{productId}}/stock
+  body: none
+  auth: none
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(200));
+  test('No duplicated stock effects', () => {
+    expect(res.getBody().onHand).to.equal(9);
+    expect(res.getBody().reserved).to.equal(2);
+    expect(res.getBody().available).to.equal(7);
+  });
+}

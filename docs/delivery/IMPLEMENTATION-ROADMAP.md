@@ -25,10 +25,10 @@ roadmap se usan estos estados:
 |---|---|---|
 | APIs y dominio | Implementado | Endpoints base de Order e Inventory, estados, stock físico/reservado, reposición aditiva y reconteo versionado. |
 | Persistencia | Implementado | Dos PostgreSQL, Flyway, constraints, locks, movimientos e identidades persistentes. |
-| Saga y mensajería | Parcial | Outbox/inbox, confirms, ACK manual, retry y DLQ existen; faltan pruebas deterministas de todas las ventanas de caída y una herramienta de replay. |
-| Idempotencia HTTP | Parcial | Clave, hash, status y body se persisten; faltan headers de respuesta persistidos y pruebas completas de concurrencia, errores definitivos y timeout transitorio. |
-| Contratos | Parcial | Hay OpenAPI/AsyncAPI y dos checks estructurales; no hay validación completa contra metaschemas ni compatibilidad request/response observada. |
-| Pruebas | Parcial | `mvn -B -ntp clean verify` pasó 46 pruebas con PostgreSQL y RabbitMQ reales; faltan Bruno, k6, property tests, fuzzing y varias carreras críticas. |
+| Saga y mensajería | Implementado para M3 | Outbox/inbox, confirms, ACK manual, retry/DLQ, failpoints deterministas, assertions de topología y replay validado por convergencia. |
+| Idempotencia HTTP | Implementado para M2 | Headers históricos, concurrencia, conflictos, errores definitivos, timeout de lock, migración V2->V3 y retry acotado de deadlock/serialización. |
+| Contratos | Implementado para M1 | OpenAPI/AsyncAPI contra metaschemas versionados, schemas de eventos, validación observada request/response y colección Bruno repetible. |
+| Pruebas | Implementado para M1-M3 | Maven, Testcontainers, Bruno en Compose, integración de mensajería, idempotencia, límites y constraints; property/fuzz/k6 permanecen en M4-M6. |
 | Compose | Parcial | Base, `demo-data`, cuotas y réplicas existen; no existen perfiles versionados de observabilidad o caos ni arneses de invariantes. |
 | Observabilidad | Pendiente | Hay Actuator health, logs ECS y contexto en el envelope; no hay Collector, Prometheus, Tempo, Loki, Grafana, spans exportados, métricas de negocio, dashboards o alertas. |
 | CI | Parcial | Un workflow ejecuta Maven, Compose y `demo-data`; no se pudo confirmar una ejecución remota autenticada y aún no contiene todas las puertas diseñadas. |
@@ -89,15 +89,15 @@ que CI, sin depender de scripts locales no versionados.
 
 ### Features/TODO
 
-- [ ] Validar los dos OpenAPI y AsyncAPI completos contra sus metaschemas, no solo nombres de paths,
+- [x] Validar los dos OpenAPI y AsyncAPI completos contra sus metaschemas, no solo nombres de paths,
   mensajes y campos comunes.
-- [ ] Agregar validación de compatibilidad para todos los payloads de eventos, enums, formatos UUID,
+- [x] Agregar validación de compatibilidad para todos los payloads de eventos, enums, formatos UUID,
   versiones, campos requeridos y `additionalProperties` según el contrato aceptado.
-- [ ] Crear una colección Bruno versionada con todos los endpoints, errores y los flujos
+- [x] Crear una colección Bruno versionada con todos los endpoints, errores y los flujos
   `PENDING -> CONFIRMED`, `PENDING -> REJECTED` y cancelación hasta compensación `COMPLETED`.
-- [ ] Comprobar respuestas reales contra OpenAPI, incluidos Problem Details, `Location`,
+- [x] Comprobar respuestas reales contra OpenAPI, incluidos Problem Details, `Location`,
   `X-Correlation-Id`, `Retry-After`, content type y cuerpos de replay.
-- [ ] Implementar y documentar límites explícitos de tamaño de request/mensaje y timeouts aceptados.
+- [x] Implementar y documentar límites explícitos de tamaño de request/mensaje y timeouts aceptados.
   Los valores deben coincidir con OpenAPI, configuración de Spring y broker.
 
 ### Verificación automática
@@ -124,16 +124,16 @@ positiva y una negativa; CI detecta cualquier divergencia entre contrato e imple
 
 ### Features/TODO
 
-- [ ] Extender `http_idempotency` mediante migración hacia adelante para persistir los headers de
+- [x] Extender `http_idempotency` mediante migración hacia adelante para persistir los headers de
   respuesta que deban reproducirse. El replay debe conservar status, body y headers históricos.
-- [ ] Completar la política de idempotencia: misma clave/payload, misma clave/payload distinto,
+- [x] Completar la política de idempotencia: misma clave/payload, misma clave/payload distinto,
   operaciones diferentes, errores de negocio persistibles y fallos técnicos no persistibles.
-- [ ] Introducir puntos de sincronización solo para tests que permitan provocar timeout al esperar
+- [x] Introducir puntos de sincronización solo para tests que permitan provocar timeout al esperar
   la identidad o el lock; responder `503` con `Retry-After` y permitir reusar la misma clave.
-- [ ] Cubrir explícitamente Flyway desde base vacía y actualización desde la versión anterior.
-- [ ] Completar pruebas de constraints: `onHand >= reserved >= 0`, límites/overflow, SKU único,
+- [x] Cubrir explícitamente Flyway desde base vacía y actualización desde la versión anterior.
+- [x] Completar pruebas de constraints: `onHand >= reserved >= 0`, límites/overflow, SKU único,
   `movementId` global y unicidad de líneas por producto.
-- [ ] Implementar retry acotado de deadlock/serialization donde la clasificación aceptada lo
+- [x] Implementar retry acotado de deadlock/serialization donde la clasificación aceptada lo
   requiera; no reintentar errores permanentes.
 
 ### Verificación automática
@@ -163,15 +163,15 @@ los fallos técnicos no envenenan la identidad y todas las mutaciones conservan 
 
 ### Features/TODO
 
-- [ ] Crear failpoints deterministas de test antes/después de: commit de negocio, publisher confirm,
+- [x] Crear failpoints deterministas de test antes/después de: commit de negocio, publisher confirm,
   actualización de outbox, commit del consumidor, publicación a retry/DLQ y ACK del original.
-- [ ] Completar la propagación de `traceparent`, correlación y causación en headers AMQP al publicar
+- [x] Completar la propagación de `traceparent`, correlación y causación en headers AMQP al publicar
   desde outbox; las transferencias a retry/DLQ deben conservarlos junto con `eventId` y payload.
-- [ ] Versionar una herramienta y un runbook de DLQ que validen el mensaje, conserven `eventId`,
+- [x] Versionar una herramienta y un runbook de DLQ que validen el mensaje, conserven `eventId`,
   publiquen con confirm, comprueben convergencia y solo después retiren la copia original.
-- [ ] Hacer explícita y testeable la clasificación retryable/permanent, incluidos timeout,
+- [x] Hacer explícita y testeable la clasificación retryable/permanent, incluidos timeout,
   conexión, deadlock, payload inválido, versión incompatible e invariante imposible.
-- [ ] Verificar programáticamente topología, bindings, quorum queues, TTL 1/5/30, overflow,
+- [x] Verificar programáticamente topología, bindings, quorum queues, TTL 1/5/30, overflow,
   dead-letter strategy, delivery limit y ruta segura a DLQ.
 
 ### Verificación automática

@@ -1,0 +1,15 @@
+meta {
+  name: 16-missing-stock
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{inventoryUrl}}/products/00000000-0000-4000-8000-000000000099/stock
+  body: none
+  auth: none
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(404));
+}

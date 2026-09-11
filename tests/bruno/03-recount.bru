@@ -1,0 +1,29 @@
+meta {
+  name: 03-recount
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{inventoryUrl}}/products
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-recount
+}
+
+body:json {
+  {
+    "productId": "{{productId}}",
+    "stock": 9,
+    "expectedVersion": 2,
+    "reason": "BRUNO"
+  }
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(200));
+}

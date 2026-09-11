@@ -1,0 +1,35 @@
+meta {
+  name: 08-create-cancel
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{orderUrl}}/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-cancel-create
+}
+
+body:json {
+  {
+    "items": [
+      {
+        "productId": "{{productId}}",
+        "quantity": 1
+      }
+    ]
+  }
+}
+
+script:post-response {
+  bru.setVar('cancelledId', res.getBody().orderId);
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(202));
+}

@@ -1,0 +1,15 @@
+meta {
+  name: 13-orders
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{orderUrl}}/orders
+  body: none
+  auth: none
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(200));
+}

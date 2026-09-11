@@ -22,6 +22,78 @@ import tools.jackson.databind.json.JsonMapper;
 class ServiceIT {
 
 	@Test
+	void databaseConstraintsRejectInvalidStockAndGlobalMovementDuplicatesAtomically() throws Exception {
+		String id = createProduct(10);
+		var db = app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class);
+		var tx = new org.springframework.transaction.support.TransactionTemplate(
+				app.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+		for (String invalid : java.util.List.of("on_hand=-1", "reserved=-1", "reserved=11",
+				"on_hand=1000000001", "on_hand=9223372036854775808")) {
+			UUID event = UUID.randomUUID();
+			assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
+				db.sql("INSERT INTO message_outbox(event_id,event_type,body) VALUES (:id,'Test','{}')")
+					.param("id", event).update();
+				db.sql("UPDATE products SET " + invalid + " WHERE product_id=:id")
+					.param("id", UUID.fromString(id)).update();
+			})).isInstanceOf(org.springframework.dao.DataAccessException.class);
+			assertThat(db.sql("SELECT count(*) FROM message_outbox WHERE event_id=:id")
+				.param("id", event).query(Long.class).single()).isZero();
+		}
+		assertThatThrownBy(() -> db.sql("""
+				INSERT INTO products SELECT :newId,sku,name,on_hand,reserved,version,updated_at
+				FROM products WHERE product_id=:id
+				""").param("newId", UUID.randomUUID()).param("id", UUID.fromString(id)).update())
+			.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		UUID movement = UUID.randomUUID();
+		String restock = "{\"movementId\":\"" + movement + "\",\"quantity\":1,\"reason\":\"RESTOCK\"}";
+		assertThat(request("POST", "/products/" + id + "/restock", UUID.randomUUID().toString(), restock)
+			.statusCode()).isEqualTo(201);
+		String other = createProduct(10);
+		assertThat(request("POST", "/products/" + other + "/restock", UUID.randomUUID().toString(), restock)
+			.statusCode()).isEqualTo(409);
+		assertThat(db.sql("SELECT count(*) FROM stock_movements WHERE movement_id=:id")
+			.param("id", movement).query(Long.class).single()).isEqualTo(1);
+	}
+
+	@Test
+	void rejectsInvalidBodiesAndPreservesHistoricalBusinessErrors() throws Exception {
+		for (String body : java.util.List.of("", "{", "{}",
+				"{\"sku\":\"x\",\"name\":\"x\",\"initialStock\":-1}",
+				"{\"sku\":\"x\",\"name\":\"x\",\"initialStock\":0,\"unknown\":1}")) {
+			assertThat(request("POST", "/products", UUID.randomUUID().toString(), body).statusCode()).isEqualTo(400);
+		}
+		assertThat(request("POST", "/products", UUID.randomUUID().toString(), " ".repeat(65537)).statusCode())
+			.isEqualTo(413);
+		String id = createProduct(10);
+		String key = UUID.randomUUID().toString();
+		String stale = "{\"productId\":\"" + id + "\",\"stock\":20,\"expectedVersion\":2,\"reason\":\"COUNT\"}";
+		var conflict = request("PUT", "/products", key, stale);
+		assertThat(conflict.statusCode()).isEqualTo(409);
+		request("POST", "/products/" + id + "/restock", UUID.randomUUID().toString(),
+				"{\"movementId\":\"" + UUID.randomUUID() + "\",\"quantity\":1,\"reason\":\"RESTOCK\"}");
+		assertThat(request("PUT", "/products", key, stale).body()).isEqualTo(conflict.body());
+	}
+
+	@Test
+	void heldProductLockReturns503AndSameKeyCanSucceedAfterRelease() throws Exception {
+		String id = createProduct(10);
+		String key = UUID.randomUUID().toString();
+		String body = "{\"productId\":\"" + id + "\",\"stock\":20,\"expectedVersion\":1,\"reason\":\"COUNT\"}";
+		try (var held = app.getBean(javax.sql.DataSource.class).getConnection()) {
+			held.setAutoCommit(false);
+			try (var sql = held.prepareStatement("SELECT 1 FROM products WHERE product_id=? FOR UPDATE")) {
+				sql.setObject(1, UUID.fromString(id));
+				sql.executeQuery().close();
+			}
+			var blocked = request("PUT", "/products", key, body);
+			assertThat(blocked.statusCode()).isEqualTo(503);
+			assertThat(blocked.headers().firstValue("Retry-After")).contains("1");
+			held.rollback();
+		}
+		assertThat(request("PUT", "/products", key, body).statusCode()).isEqualTo(200);
+	}
+
+	@Test
 	void listsAllProducts() throws Exception {
 		String first = createProduct(3);
 		String second = createProduct(7);
@@ -311,20 +383,30 @@ class ServiceIT {
 	@AfterAll
 	static void stop() {
 		if (app != null) {
-			app.close();
+			try {
+				app.getBean(org.springframework.jdbc.core.simple.JdbcClient.class)
+					.sql("SELECT body FROM message_outbox").query(String.class).list()
+					.forEach(body -> com.roshka.platform.messaging.EventContract.validate(JSON.readTree(body)));
+			}
+			finally {
+				app.close();
+			}
 		}
 		BROKER.stop();
 		DB.stop();
 	}
 
 	static HttpResponse<String> request(String method, String path, String key, String body) throws Exception {
-		return HTTP.send(HttpRequest.newBuilder(URI.create(base + path))
+		var response = HTTP.send(HttpRequest.newBuilder(URI.create(base + path))
 			.timeout(Duration.ofSeconds(15))
 			.header("Content-Type", "application/json")
 			.header("Idempotency-Key", key)
 			.method(method,
 					body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body))
 			.build(), HttpResponse.BodyHandlers.ofString());
+		com.roshka.testing.ObservedContract.response("inventory", method, path, response);
+		com.roshka.testing.ObservedContract.request("inventory", method, path, body, response.statusCode());
+		return response;
 	}
 
 	@Test

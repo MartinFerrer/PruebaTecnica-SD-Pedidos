@@ -8,7 +8,7 @@
 - RabbitMQ, outbox con lease y confirmación de publicación, inbox transaccional, ACK posterior al commit, retry y DLQ. Reserva de todos los ítems o ninguno y tombstone de cancelación anticipada.
 - Compose base de cinco contenedores, un runner one-shot `demo-data` y overrides para dos réplicas y cuotas. Logs JSON y propagación de contexto de correlación en HTTP/envelopes; no equivale todavía a exportar spans OpenTelemetry.
 - ArchUnit, checks iniciales de contratos, JaCoCo y workflow CI con comandos portables Maven/Compose. El formato queda bajo revisión manual. La cobertura exigida es 85% de líneas y 75% de ramas del dominio y aplicación, no de todos los adaptadores.
-- `shared-library` centraliza solo infraestructura repetida (topología RabbitMQ, confirmación, outbox, JSON, correlación, idempotencia/transacciones HTTP, respuesta de error y mecánica transaccional de consumidores); una regla arquitectónica evita dependencias hacia los dominios. Las excepciones de Order e Inventory permanecen en sus propios servicios.
+- `shared-library` centraliza solo infraestructura repetida (topología RabbitMQ, confirmación, outbox, JSON, correlación, idempotencia/transacciones HTTP, contratos de eventos, respuesta de error y mecánica transaccional de consumidores); una regla arquitectónica evita dependencias hacia los dominios. Las excepciones de Order e Inventory permanecen en sus propios servicios.
 
 ## Evidencia de desarrollo
 
@@ -20,7 +20,7 @@ Durante el bootstrap se ejecutó una prueba local de recursos limitados con dos 
 
 ## Comandos reproducibles
 
-La última verificación completa pasó `mvn -B -ntp clean verify` el 2026-09-11: 46 pruebas, cero fallos y cero pruebas omitidas. Cobertura del núcleo (dominio + aplicación): Order 99,37% de líneas / 80,43% de ramas; Inventory 97,81% de líneas / 85,94% de ramas. El formato no participa en la puerta automática.
+La verificación completa de M1-M3 se ejecuta mediante `java scripts/Verify.java full` y usa Maven Wrapper 3.9.16, PostgreSQL/RabbitMQ reales mediante Testcontainers. La última evidencia incluye 35 pruebas unitarias y 43 de integración: 8 de Order, 16 de Inventory, 7 de idempotencia compartida y 12 escenarios de mensajería; no hubo fallos ni omisiones. El formato no participa en la puerta automática.
 
 El análisis más reciente se ejecutó con `jscpd 5.2.0 --min-lines 5 --min-tokens 50` sobre los Java de `services/`, ignorando `target/` y eliminando sus reportes temporales. En el refactor actual las líneas duplicadas bajaron de 9,91% a 7,91%. El número bruto de clones pasó de 22 a 25 porque los puertos y DTO se dividieron en archivos pequeños; no representa más código duplicado. Los clones restantes corresponden sobre todo a configuración por servicio, excepciones de dominio que deben permanecer aisladas, adaptadores del mismo protocolo y pruebas de integración; no se comparte una biblioteca de dominio ni se introduce una abstracción que oculte diferencias reales entre los bounded contexts.
 
@@ -36,7 +36,7 @@ java scripts/Verify.java acceptance
 
 El runner de M0 deja metadata, logs sanitizados, versiones de herramientas, configuración,
 imágenes y reportes Maven en `reports/verification/<suite>/<run-id>/`. Las suites que todavía no
-existen terminan con `SUITE_NOT_IMPLEMENTED`; no se cuentan como ejecutadas.
+Las suites `property`, `fuzz` y `chaos` siguen siendo explícitamente pendientes; no se cuentan como ejecutadas.
 
 Los reportes unitarios e integración quedan en `services/*/target/{surefire,failsafe}-reports`; cobertura en `services/*/target/site/jacoco`. CI conserva estos reportes como artefactos. El workflow aún no se ejecutó en GitHub.
 
@@ -46,8 +46,7 @@ El backlog ordenado, sus dependencias, pruebas automáticas, validaciones manual
 cierre se mantienen en el
 [roadmap de implementación y verificación](../delivery/IMPLEMENTATION-ROADMAP.md). Resumen:
 
-- Validación automática exhaustiva de esquemas OpenAPI/AsyncAPI y más pruebas de contratos negativos.
-- Inyección determinista de caída entre commit y ACK, y entre confirmación del broker y actualización de outbox; ampliar pruebas del ciclo completo de retries.
+- Property tests, fuzzing con semillas/corpus, caos de red con Toxiproxy, pruebas de saturación prolongada y campañas k6 multirréplica.
 - Fuzzing con semillas/corpus, caos de red con Toxiproxy, pruebas de saturación de memoria y campañas prolongadas de carga.
 - Stack opcional de observabilidad y exportación de spans/métricas; publicación en GHCR y análisis de seguridad adicionales previstos en el diseño de CI/CD.
 

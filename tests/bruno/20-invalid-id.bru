@@ -1,0 +1,15 @@
+meta {
+  name: 20-invalid-id
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{orderUrl}}/orders/not-a-uuid
+  body: none
+  auth: none
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(400));
+}

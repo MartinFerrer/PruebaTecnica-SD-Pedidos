@@ -1,0 +1,29 @@
+meta {
+  name: 15-stale-recount
+  type: http
+  seq: 15
+}
+
+put {
+  url: {{inventoryUrl}}/products
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-stale
+}
+
+body:json {
+  {
+    "productId": "{{productId}}",
+    "stock": 10,
+    "expectedVersion": 1,
+    "reason": "STALE"
+  }
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(409));
+}

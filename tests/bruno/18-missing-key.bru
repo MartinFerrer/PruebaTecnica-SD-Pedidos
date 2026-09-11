@@ -1,0 +1,30 @@
+meta {
+  name: 18-missing-key
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{orderUrl}}/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "items": [
+      {
+        "productId": "{{productId}}",
+        "quantity": 1
+      }
+    ]
+  }
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(400));
+}

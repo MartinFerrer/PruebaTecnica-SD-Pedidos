@@ -1,0 +1,35 @@
+meta {
+  name: 06-create-reject
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{orderUrl}}/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-reject
+}
+
+body:json {
+  {
+    "items": [
+      {
+        "productId": "{{productId}}",
+        "quantity": 100
+      }
+    ]
+  }
+}
+
+script:post-response {
+  bru.setVar('rejectedId', res.getBody().orderId);
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(202));
+}

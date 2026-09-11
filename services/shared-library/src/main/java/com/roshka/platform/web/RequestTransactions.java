@@ -3,6 +3,7 @@ package com.roshka.platform.web;
 import com.roshka.platform.json.JsonCodec;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -17,7 +18,10 @@ import org.springframework.transaction.PlatformTransactionManager;
  */
 public final class RequestTransactions {
 
-	public record Result(int status, Object body) {
+	public record Result(int status, Object body, Map<String, String> headers) {
+		public Result(int status, Object body) {
+			this(status, body, Map.of());
+		}
 	}
 
 	public record Failure(int status, String code) {
@@ -45,7 +49,8 @@ public final class RequestTransactions {
 		return executor.write(operation, key, request, () -> {
 			try {
 				Object result = work.get();
-				return result instanceof Result response ? executor.success(response.status(), response.body())
+				return result instanceof Result response
+						? executor.success(response.status(), response.body(), response.headers())
 						: executor.success(successStatus, result);
 			}
 			catch (RuntimeException failure) {

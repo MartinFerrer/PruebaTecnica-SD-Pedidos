@@ -18,10 +18,10 @@ class ArchitectureTest {
 			.dependOnClassesThat()
 			.resideInAnyPackage(
 					"org.springframework..",
-					"jakarta..", 
-					"tools.jackson..", 
+					"jakarta..",
+					"tools.jackson..",
 					"com.fasterxml..",
-					"..adapter..", 
+					"..adapter..",
 					"..configuration..")
 			.check(classes);
 		noClasses().should().dependOnClassesThat().resideInAPackage("com.roshka.inventory..").check(classes);

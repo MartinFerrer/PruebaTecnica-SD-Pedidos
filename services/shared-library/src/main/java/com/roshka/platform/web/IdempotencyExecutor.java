@@ -1,10 +1,13 @@
 package com.roshka.platform.web;
 
 import com.roshka.platform.json.JsonCodec;
+import com.roshka.platform.messaging.MessageContext;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Objects;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.function.Supplier;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -20,7 +23,14 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 public final class IdempotencyExecutor {
 
-	public record Reply(int status, String body) {
+	public record Reply(int status, String body, Map<String, String> headers) {
+		public Reply {
+			headers = Map.copyOf(headers);
+		}
+
+		public Reply(int status, String body) {
+			this(status, body, defaultHeaders(status));
+		}
 	}
 
 	private final JdbcClient db;
@@ -45,6 +55,29 @@ public final class IdempotencyExecutor {
 			return problem(400, "INVALID_IDEMPOTENCY_KEY");
 		}
 		String fingerprint = fingerprint(request);
+		for (int attempt = 1; ; attempt++) {
+			try {
+				return executeWrite(operation, key, fingerprint, work);
+			}
+			catch (org.springframework.dao.DataAccessException failure) {
+				if (attempt >= 3 || !transactionAborted(failure)) {
+					throw failure;
+				}
+			}
+		}
+	}
+
+	private static boolean transactionAborted(Throwable failure) {
+		for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+			if (cause instanceof java.sql.SQLException sql
+					&& ("40P01".equals(sql.getSQLState()) || "40001".equals(sql.getSQLState()))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private Reply executeWrite(String operation, String key, String fingerprint, Supplier<Reply> work) {
 		return tx.execute(status -> {
 			db.sql("SET LOCAL lock_timeout = '3s'").update();
 			int claimed = claim(operation, key, fingerprint);
@@ -53,9 +86,11 @@ public final class IdempotencyExecutor {
 			}
 
 			Reply reply = Objects.requireNonNull(work.get(), "idempotency callback result");
-			db.sql("UPDATE http_idempotency SET status=:status,body=:body WHERE operation=:op AND key=:key")
+			db.sql("UPDATE http_idempotency SET status=:status,body=:body,headers=CAST(:headers AS jsonb) "
+					+ "WHERE operation=:op AND key=:key")
 				.param("status", reply.status())
 				.param("body", reply.body())
+				.param("headers", json.write(reply.headers()))
 				.param("op", operation)
 				.param("key", key)
 				.update();
@@ -65,6 +100,22 @@ public final class IdempotencyExecutor {
 
 	public Reply success(int status, Object body) {
 		return new Reply(status, json.write(body));
+	}
+
+	public Reply success(int status, Object body, Map<String, String> additionalHeaders) {
+		var headers = new LinkedHashMap<>(defaultHeaders(status));
+		headers.putAll(additionalHeaders);
+		return new Reply(status, json.write(body), headers);
+	}
+
+	private static Map<String, String> defaultHeaders(int status) {
+		var headers = new LinkedHashMap<String, String>();
+		headers.put("Content-Type", status >= 400 ? "application/problem+json" : "application/json");
+		headers.put("X-Correlation-Id", MessageContext.current().correlationId());
+		if (status == 503) {
+			headers.put("Retry-After", "1");
+		}
+		return headers;
 	}
 
 	public Reply problem(int status, String code) {
@@ -82,10 +133,12 @@ public final class IdempotencyExecutor {
 	}
 
 	private Reply existing(String operation, String key, String fingerprint) {
-		return db.sql("SELECT fingerprint,status,body FROM http_idempotency WHERE operation=:op AND key=:key")
+		return db.sql("SELECT fingerprint,status,body,headers FROM http_idempotency WHERE operation=:op AND key=:key")
 			.param("op", operation)
 			.param("key", key)
-			.query((rs, row) -> fingerprint.equals(rs.getString(1)) ? new Reply(rs.getInt(2), rs.getString(3))
+			.query((rs, row) -> fingerprint.equals(rs.getString(1))
+					? new Reply(rs.getInt(2), rs.getString(3), json.mapper.readValue(rs.getString(4),
+							new tools.jackson.core.type.TypeReference<Map<String, String>>() { }))
 					: problem(409, "IDEMPOTENCY_CONFLICT"))
 			.single();
 	}

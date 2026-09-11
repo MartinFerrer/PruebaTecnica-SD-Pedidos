@@ -3,14 +3,12 @@ package com.roshka.order.adapter.in.rest;
 import com.roshka.order.application.port.in.CancelOrderUseCase;
 import com.roshka.order.application.port.in.CreateOrderUseCase;
 import com.roshka.order.application.port.in.FindOrdersQuery;
-import com.roshka.platform.json.JsonCodec;
 import com.roshka.platform.web.HttpResponseMapper;
 import com.roshka.platform.web.RequestTransactions;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,33 +30,22 @@ public class OrderController {
 
 	private final OrderApiMapper mapper;
 
-	private final JsonCodec json;
-
 	public OrderController(CreateOrderUseCase createOrder, FindOrdersQuery findOrders, CancelOrderUseCase cancelOrder,
-			RequestTransactions transactions, OrderApiMapper mapper, JsonCodec json) {
+			RequestTransactions transactions, OrderApiMapper mapper) {
 		this.createOrder = createOrder;
 		this.findOrders = findOrders;
 		this.cancelOrder = cancelOrder;
 		this.transactions = transactions;
 		this.mapper = mapper;
-		this.json = json;
 	}
 
 	@PostMapping("/orders")
 	ResponseEntity<String> create(@RequestHeader(value = "Idempotency-Key", required = false) String key,
 			@Valid @RequestBody OrderRequest.Create request) {
-		var reply = transactions.write("create-order", key, request, 202,
-				() -> mapper.toResponse(createOrder.create(mapper.toCommand(request))));
-		var response = HttpResponseMapper.toResponse(reply);
-		if (reply.status() != 202) {
-			return response;
-		}
-
-		var headers = new HttpHeaders();
-		headers.putAll(response.getHeaders());
-		String orderId = json.mapper.readTree(reply.body()).get("orderId").stringValue();
-		headers.setLocation(java.net.URI.create("/orders/" + orderId));
-		return new ResponseEntity<>(reply.body(), headers, response.getStatusCode());
+		return HttpResponseMapper.toResponse(transactions.write("create-order", key, request, 202, () -> {
+			var response = mapper.toResponse(createOrder.create(mapper.toCommand(request)));
+			return new RequestTransactions.Result(202, response, Map.of("Location", "/orders/" + response.orderId()));
+		}));
 	}
 
 	@GetMapping("/orders/{id}")

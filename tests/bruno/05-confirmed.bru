@@ -1,0 +1,24 @@
+meta {
+  name: 05-confirmed
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{orderUrl}}/orders/{{confirmedId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(200));
+  const terminal = res.getBody().status === 'CONFIRMED';
+  const count = bru.getVar('05-confirmed-poll') || 0;
+  if (!terminal && count < 120) {
+    bru.setVar('05-confirmed-poll', count + 1);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    bru.setNextRequest('05-confirmed');
+  } else {
+    test('Terminal state converges', () => expect(terminal).to.equal(true));
+  }
+}

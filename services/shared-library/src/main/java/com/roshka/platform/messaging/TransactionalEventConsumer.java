@@ -64,6 +64,9 @@ public abstract class TransactionalEventConsumer {
 	protected final void consume(Message message, Channel channel) throws IOException {
 		long tag = message.getMessageProperties().getDeliveryTag();
 		try {
+			if (message.getBody().length > 262_144) {
+				throw new IllegalArgumentException("MESSAGE_TOO_LARGE");
+			}
 			JsonNode event = json.mapper.readTree(message.getBody());
 			validate(event);
 			tx.executeWithoutResult(status -> {
@@ -81,19 +84,29 @@ public abstract class TransactionalEventConsumer {
 						handle(event);
 					}
 				}
+				checkpoint("before-commit");
 			});
 		}
 		catch (RuntimeException e) {
 			transferFailure(message, channel, e);
 			return;
 		}
+		checkpoint("after-commit");
+		checkpoint("before-ack");
 		channel.basicAck(tag, false);
+		checkpoint("after-ack");
+	}
+
+	/** Overridden only by tests to model process loss at a precise transaction boundary. */
+	protected void checkpoint(String stage) {
 	}
 
 	protected abstract void handle(JsonNode event);
 
 	protected boolean isPermanentFailure(RuntimeException failure) {
-		return failure instanceof IllegalArgumentException || failure instanceof tools.jackson.core.JacksonException;
+		return failure instanceof IllegalArgumentException || failure instanceof IllegalStateException
+				|| failure instanceof tools.jackson.core.JacksonException
+				|| failure instanceof org.springframework.dao.DataIntegrityViolationException;
 	}
 
 	private void transferFailure(Message message, Channel channel, RuntimeException failure) throws IOException {
@@ -111,16 +124,21 @@ public abstract class TransactionalEventConsumer {
 		props.setContentType("application/json");
 		props.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
 		try {
+			checkpoint("before-transfer");
 			publisher.send("", destination, new Message(message.getBody(), props));
+			checkpoint("after-transfer");
 		}
 		catch (RuntimeException transferFailure) {
 			channel.abort();
 			throw transferFailure;
 		}
+		checkpoint("before-ack");
 		channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+		checkpoint("after-ack");
 	}
 
 	private void validate(JsonNode event) {
+		EventContract.validate(event);
 		if (!event.isObject() || !event.hasNonNull("eventId") || !event.hasNonNull("aggregateId")
 				|| !event.hasNonNull("eventType") || !event.hasNonNull("payload")
 				|| event.path("schemaVersion").asInt() != 1 || event.path("aggregateVersion").asLong() < 1

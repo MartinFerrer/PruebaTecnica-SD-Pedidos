@@ -1,0 +1,24 @@
+meta {
+  name: 07-rejected
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{orderUrl}}/orders/{{rejectedId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(200));
+  const terminal = res.getBody().status === 'REJECTED';
+  const count = bru.getVar('07-rejected-poll') || 0;
+  if (!terminal && count < 120) {
+    bru.setVar('07-rejected-poll', count + 1);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    bru.setNextRequest('07-rejected');
+  } else {
+    test('Terminal state converges', () => expect(terminal).to.equal(true));
+  }
+}

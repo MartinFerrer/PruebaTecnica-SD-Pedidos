@@ -1,5 +1,7 @@
 {
   "asyncapi": "3.0.0",
+  "x-max-message-bytes": 262144,
+  "x-publisher-confirm-timeout-seconds": 5,
   "info": {
     "title": "Order and Inventory Events",
     "version": "1.0.0"

@@ -1,0 +1,32 @@
+meta {
+  name: 22-unknown-field
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{orderUrl}}/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Idempotency-Key: {{runId}}-unknown
+}
+
+body:json {
+  {
+    "items": [
+      {
+        "productId": "{{productId}}",
+        "quantity": 1
+      }
+    ],
+    "unknown": true
+  }
+}
+
+tests {
+  test('Expected HTTP status', () => expect(res.getStatus()).to.equal(400));
+}

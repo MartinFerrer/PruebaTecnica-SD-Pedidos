@@ -16,6 +16,9 @@ public class ConfirmedPublisher {
 	}
 
 	public void send(String exchange, String routingKey, Message message) {
+		if (message.getBody().length > 262_144) {
+			throw new IllegalArgumentException("MESSAGE_TOO_LARGE");
+		}
 		CorrelationData correlation = new CorrelationData();
 		rabbit.send(exchange, routingKey, message, correlation);
 		try {

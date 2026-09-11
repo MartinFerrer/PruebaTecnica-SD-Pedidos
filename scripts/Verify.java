@@ -139,9 +139,9 @@ public final class Verify {
 		switch (suite) {
 			case "quick" -> runMaven(List.of("test"));
 			case "full" -> runMaven(List.of("clean", "verify"));
-			case "contracts" -> runMaven(List.of("-pl", "services/shared-library", "-am", "-Dtest=ContractTest", "test"));
+			case "contracts" -> runMaven(List.of("-pl", "services/shared-library", "-am", "-Dtest=*ContractTest", "test"));
 			case "concurrency" -> runMaven(List.of("-pl", "services/order-service,services/inventory-service", "-am",
-					"-Dtest=*Test", "-Dit.test=ServiceIT", "verify"));
+					"-Dtest=*Test", "-Dit.test=ServiceIT,IdempotencyIT,MessagingIT", "verify"));
 			case "acceptance" -> runAcceptance();
 			case "clean" -> runClean();
 			case "property" -> markPending("No existe todavía un perfil de property tests");
@@ -166,33 +166,59 @@ public final class Verify {
 	}
 
 	private void runConstrained() throws IOException {
-		if (commandAvailable("docker")) {
-			runStep("constrained-config", List.of("docker", "compose", "-f", "compose.yaml", "-f",
-					"deploy/compose/constrained.yaml", "config", "--quiet"), false);
+		runAcceptance();
+	}
+
+	private List<String> compose(String... arguments) {
+		var command = new ArrayList<>(List.of("docker", "compose", "-f", "compose.yaml"));
+		if (suite.equals("constrained")) {
+			command.addAll(List.of("-f", "deploy/compose/constrained.yaml"));
 		}
-		markPending("El arnés de presión efectiva y su verificador todavía no están versionados");
+		command.addAll(List.of(arguments));
+		return command;
 	}
 
 	private void runAcceptance() throws IOException {
-		clearMavenReports();
 		if (!commandAvailable("docker")) {
 			markPending("Docker no está disponible para acceptance");
 			return;
 		}
 		try {
-			if (!runStep("compose-config", List.of("docker", "compose", "config", "--quiet"), false)) {
+			if (!runStep("compose-config", compose("config", "--quiet"), false)) {
 				return;
 			}
-			if (!runStep("compose-up", List.of("docker", "compose", "up", "--build", "--wait",
+			if (!runStep("compose-up", compose("up", "--build", "--wait",
 					"--wait-timeout", "180"), false)) {
 				return;
 			}
 			metadata.put("images", List.of(probe(List.of("docker", "compose", "images"))));
 			writeMetadata();
-			runStep("demo-data-first", List.of("docker", "compose", "--profile", "demo-data", "run", "--build",
-				"--rm", "demo-data"), false);
-			runStep("demo-data-replay", List.of("docker", "compose", "--profile", "demo-data", "run", "--rm",
-				"demo-data"), false);
+			runStep("demo-data-first", compose("--profile", "demo-data", "run", "--build",
+				"--rm", "--no-deps", "demo-data"), false);
+			runStep("demo-data-replay", compose("--profile", "demo-data", "run", "--rm",
+				"--no-deps", "demo-data"), false);
+			for (String pass : List.of("first", "replay")) {
+				String report = "/reports/" + repository.resolve("reports").relativize(reportDirectory)
+						.toString().replace('\\', '/') + "/bruno-" + pass + ".xml";
+				runStep("bruno-" + pass, compose("--profile", "acceptance", "run", "--rm", "--no-deps",
+						"acceptance", "run", "--env", "compose", "--env-var", "runId=" + metadata.get("runId"),
+						"--sandbox", "developer", "--reporter-junit", report), false);
+				Path xml = reportDirectory.resolve("bruno-" + pass + ".xml");
+				if (!Files.exists(xml) || !Files.readString(xml).contains("testcase")) {
+					markPending("Bruno no produjo pruebas: " + pass);
+				}
+			}
+			if (suite.equals("constrained")) {
+				for (String service : List.of("order-service", "inventory-service", "order-db", "inventory-db", "rabbitmq")) {
+					String id = probe(compose("ps", "-q", service)).trim();
+					String limits = probe(List.of("docker", "inspect", "--format",
+							"{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}} {{.RestartCount}} {{.State.OOMKilled}}", id));
+					metadata.put("effectiveLimits-" + service, limits);
+					if (!limits.startsWith("500000000 ") || limits.contains(" true")) {
+						markPending("Cuotas no aplicadas u OOM: " + service);
+					}
+				}
+			}
 		}
 		finally {
 			runStep("compose-logs", List.of("docker", "compose", "logs", "--no-color"), true);
@@ -254,8 +280,8 @@ public final class Verify {
 	}
 
 	private void finish() throws IOException {
-		Map<String, Integer> summary = collectMavenReports();
 		if (Set.of("quick", "full", "contracts", "concurrency").contains(suite)) {
+			Map<String, Integer> summary = collectMavenReports();
 			validateExpectedTests(summary);
 		}
 		metadata.put("finishedAt", Instant.now().toString());
@@ -359,9 +385,12 @@ public final class Verify {
 		List<String> files = (List<String>) mavenReports.get("files");
 		boolean expected = switch (suite) {
 			case "quick" -> summary.get("surefireTests") > 0;
-			case "full" -> summary.get("surefireTests") > 0 && summary.get("failsafeTests") > 0;
-			case "contracts" -> files.stream().anyMatch(file -> file.contains("ContractTest"));
-			case "concurrency" -> files.stream().anyMatch(file -> file.contains("ServiceIT"));
+			case "full", "concurrency" -> summary.get("surefireTests") > 0
+					&& List.of("com.roshka.order.ServiceIT", "com.roshka.inventory.ServiceIT",
+						"MessagingIT", "IdempotencyIT").stream()
+						.allMatch(test -> files.stream().anyMatch(file -> file.contains(test)));
+			case "contracts" -> List.of("platform.ContractTest", "EventContractTest").stream()
+					.allMatch(test -> files.stream().anyMatch(file -> file.contains(test)));
 			default -> true;
 		};
 		if (!expected) {

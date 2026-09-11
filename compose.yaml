@@ -32,7 +32,9 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: app
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
-    volumes: [rabbit-data:/var/lib/rabbitmq]
+    volumes:
+      - rabbit-data:/var/lib/rabbitmq
+      - ./deploy/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-limits.conf:ro
     networks: [messaging]
     ports: ["127.0.0.1:15672:15672"]
     healthcheck:
@@ -96,6 +98,29 @@ services:
       ORDER_URL: http://order-service:8080
       DEMO_TIMEOUT_SECONDS: 45
     networks: [messaging]
+    depends_on:
+      order-service: {condition: service_healthy}
+      inventory-service: {condition: service_healthy}
+    restart: "no"
+  dlq-replay:
+    profiles: [operations]
+    image: roshka/order-service:local
+    entrypoint: [java, -Dloader.main=com.roshka.platform.messaging.DlqReplayCommand, -cp, /app/app.jar, org.springframework.boot.loader.launch.PropertiesLauncher]
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: app
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    networks: [messaging]
+    restart: "no"
+  acceptance:
+    profiles: [acceptance]
+    image: usebruno/cli:4.1.0
+    working_dir: /bruno
+    volumes:
+      - ./tests/bruno:/bruno:ro
+      - ./reports:/reports
+    networks: [messaging]
+    command: [run, --env, compose, --sandbox, developer, --reporter-junit, /reports/bruno.xml]
     depends_on:
       order-service: {condition: service_healthy}
       inventory-service: {condition: service_healthy}

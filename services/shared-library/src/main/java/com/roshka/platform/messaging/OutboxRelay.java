@@ -58,18 +58,26 @@ public class OutboxRelay {
 
 	private void dispatch(Pending item, UUID token) {
 		try {
+			checkpoint("before-publish");
 			var properties = new MessageProperties();
 			properties.setContentType("application/json");
 			properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
 			properties.setMessageId(item.id().toString());
+			var envelope = new com.roshka.platform.json.JsonCodec().mapper.readTree(item.body());
+			for (String name : java.util.List.of("traceparent", "correlationId", "causationId")) {
+				properties.setHeader(name, envelope.path(name).asString());
+			}
 			publisher.send("business.events", item.type(),
 					new Message(item.body().getBytes(StandardCharsets.UTF_8), properties));
+			checkpoint("after-confirm");
+			checkpoint("before-outbox-update");
 			int updated = db
 				.sql("UPDATE message_outbox SET published=true,lease_until=NULL "
 						+ "WHERE event_id=:id AND lease_token=:token")
 				.param("id", item.id())
 				.param("token", token)
 				.update();
+			checkpoint("after-outbox-update");
 			if (updated != 1) {
 				log.warn("Outbox lease lost after publish event={}", item.id());
 			}
@@ -85,6 +93,10 @@ public class OutboxRelay {
 				.update();
 			log.warn("Outbox pending event={} reason={}", item.id(), e.toString());
 		}
+	}
+
+	/** Overridden only by deterministic tests; no runtime fault configuration is exposed. */
+	protected void checkpoint(String stage) {
 	}
 
 }
