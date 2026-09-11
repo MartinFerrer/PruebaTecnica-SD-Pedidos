@@ -26,9 +26,11 @@ class ContractTest {
 		JsonNode messages = read("contracts/asyncapi/events.json").path("components").path("messages");
 
 		assertThat(messages.propertyNames()).containsExactlyInAnyOrder(
-				"OrderCreated", "OrderCancelled", "StockReserved", "StockRejected", "StockReleased", "ProductStockCreated", "ProductStockReplenished", "ProductStockUpdated");
+				"OrderCreated", "OrderCancelled", "StockReserved", "StockRejected", "StockReleased", 
+				"ProductStockCreated", "ProductStockReplenished", "ProductStockUpdated");
 		for (String name : new String[] { "StockReserved", "StockRejected", "StockReleased" }) {
-			assertThat(messages.path(name).path("payload").path("required").toString()).contains("eventId", "aggregateId", "aggregateVersion", "payload");
+			assertThat(messages.path(name).path("payload").path("required").toString()).contains(
+				"eventId", "aggregateId", "aggregateVersion", "payload");
 		}
 	}
 

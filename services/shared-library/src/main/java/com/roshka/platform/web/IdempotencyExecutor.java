@@ -73,7 +73,7 @@ public final class IdempotencyExecutor {
 
 	private int claim(String operation, String key, String fingerprint) {
 		return db
-			.sql("INSERT INTO http_idempotency(operation, key, fingerprint) " 
+			.sql("INSERT INTO http_idempotency(operation, key, fingerprint) "
 					+ "VALUES (:op,:key,:hash) ON CONFLICT DO NOTHING")
 			.param("op", operation)
 			.param("key", key)

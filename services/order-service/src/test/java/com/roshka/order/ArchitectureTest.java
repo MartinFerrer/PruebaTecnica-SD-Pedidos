@@ -16,8 +16,13 @@ class ArchitectureTest {
 			.resideInAnyPackage("..domain..", "..application..")
 			.should()
 			.dependOnClassesThat()
-			.resideInAnyPackage("org.springframework..", "jakarta..", "tools.jackson..", "com.fasterxml..",
-					"..adapter..", "..configuration..")
+			.resideInAnyPackage(
+					"org.springframework..",
+					"jakarta..", 
+					"tools.jackson..", 
+					"com.fasterxml..",
+					"..adapter..", 
+					"..configuration..")
 			.check(classes);
 		noClasses().should().dependOnClassesThat().resideInAPackage("com.roshka.inventory..").check(classes);
 	}

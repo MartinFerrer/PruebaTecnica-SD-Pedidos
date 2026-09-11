@@ -11,7 +11,6 @@ import com.roshka.inventory.application.port.out.InventoryStore;
 import com.roshka.inventory.application.service.InventoryService;
 import com.roshka.inventory.domain.BusinessException;
 import com.roshka.inventory.domain.Product;
-import com.roshka.inventory.domain.Stock;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;

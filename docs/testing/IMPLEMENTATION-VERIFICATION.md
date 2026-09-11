@@ -38,6 +38,10 @@ Los reportes unitarios e integración quedan en `services/*/target/{surefire,fai
 
 ## Pendientes, no garantías de esta entrega
 
+El backlog ordenado, sus dependencias, pruebas automáticas, validaciones manuales y criterios de
+cierre se mantienen en el
+[roadmap de implementación y verificación](../delivery/IMPLEMENTATION-ROADMAP.md). Resumen:
+
 - Validación automática exhaustiva de esquemas OpenAPI/AsyncAPI y más pruebas de contratos negativos.
 - Inyección determinista de caída entre commit y ACK, y entre confirmación del broker y actualización de outbox; ampliar pruebas del ciclo completo de retries.
 - Fuzzing con semillas/corpus, caos de red con Toxiproxy, pruebas de saturación de memoria y campañas prolongadas de carga.

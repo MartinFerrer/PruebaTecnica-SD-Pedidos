@@ -26,7 +26,7 @@ public class OrderApiMapper {
 	}
 
 	public String cancellationReason(OrderRequest.Cancel request) {
-		return request == null || request.reason() == null ? "" : request.reason();
+		return (request == null || request.reason() == null) ? "" : request.reason();
 	}
 
 }

@@ -11,14 +11,14 @@ import org.springframework.stereotype.Repository;
 public class JdbcReservationStore implements ReservationStore {
 
 	private static final String UPSERT_RESERVATION_SQL = """
-				INSERT INTO reservations (order_id, state, last_order_version, version, items) \
-				VALUES (:id, :state, :last, :version, :items) \
-				ON CONFLICT (order_id) DO UPDATE SET \
-				state = EXCLUDED.state, \
-				last_order_version = EXCLUDED.last_order_version, \
-				version = EXCLUDED.version, \
-				items = EXCLUDED.items\
-				""";
+			INSERT INTO reservations (order_id, state, last_order_version, version, items) \
+			VALUES (:id, :state, :last, :version, :items) \
+			ON CONFLICT (order_id) DO UPDATE SET \
+			state = EXCLUDED.state, \
+			last_order_version = EXCLUDED.last_order_version, \
+			version = EXCLUDED.version, \
+			items = EXCLUDED.items\
+			""";
 
 	private final JdbcClient db;
 

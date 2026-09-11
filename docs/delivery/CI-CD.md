@@ -9,7 +9,9 @@ informa problemas básicos sin bloquear el build. No se ha ejecutado remotamente
 siguientes mantienen el diseño objetivo; análisis de seguridad adicionales, fuzzing y publicación
 en GHCR todavía no están implementados. Ver
 [evidencia y pendientes](../testing/IMPLEMENTATION-VERIFICATION.md) y la
-[guía de estilo](../development/CODE-STYLE.md).
+[guía de estilo](../development/CODE-STYLE.md). El orden de implementación, pruebas automáticas,
+validaciones manuales y criterios de cierre se mantienen en el
+[roadmap de implementación y verificación](IMPLEMENTATION-ROADMAP.md).
 
 ## Principios
 

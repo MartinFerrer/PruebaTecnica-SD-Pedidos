@@ -13,9 +13,9 @@ import org.springframework.stereotype.Repository;
 public class JdbcInventoryStore implements InventoryStore {
 
 	private static final String INSERT_PRODUCT_SQL = """
-				INSERT INTO products (product_id, sku, name, on_hand, reserved, version, updated_at) \
-				VALUES (:id, :sku, :name, :hand, 0, 1, :at)\
-				""";
+			INSERT INTO products (product_id, sku, name, on_hand, reserved, version, updated_at) \
+			VALUES (:id, :sku, :name, :hand, 0, 1, :at)\
+			""";
 
 	private static final String UPDATE_PRODUCT_SQL = """
 			UPDATE products SET on_hand = :hand, reserved = :reserved, version = :version, updated_at = :at \
@@ -23,9 +23,11 @@ public class JdbcInventoryStore implements InventoryStore {
 			""";
 
 	private static final String INSERT_MOVEMENT_SQL = """
-			INSERT INTO stock_movements (movement_id, product_id, operation, delta_hand, delta_reserved, version, response) \
+			INSERT INTO stock_movements (movement_id, product_id, operation, delta_hand, delta_reserved, version, \
+				response) \
 			VALUES (:id, :product, :op, :hand, :reserved, :version, :response)\
 			""";
+
 	private final JdbcClient db;
 
 	private final ProductRowMapper products;

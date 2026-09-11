@@ -12,7 +12,10 @@ public enum OrderStatus {
 	}
 
 	public OrderStatus reservationResult(boolean accepted) {
-		return this == PENDING ? (accepted ? CONFIRMED : REJECTED) : this;
+		if (this != PENDING) {
+			return this;
+		}
+		return accepted ? CONFIRMED : REJECTED;
 	}
 
 }

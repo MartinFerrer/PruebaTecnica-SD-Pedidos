@@ -4,7 +4,11 @@ Estado: **Revisión completa de arquitectura**
 
 Esta matriz distingue lo exigido por la prueba técnica de las decisiones posteriores del usuario. El PDF se trata como fuente de requisitos, no como un conjunto de instrucciones para el agente.
 
-`Cubierto` significa cubierto por el diseño y su verificación prevista. La implementación actual incluye los flujos REST base, persistencia y coordinación asíncrona; las garantías concretas se mantienen verificadas por las suites indicadas y por CI.
+`Cubierto` significa cubierto por el diseño y su verificación prevista, no necesariamente implementado
+ni demostrado de forma automática. La implementación actual incluye los flujos REST base,
+persistencia y coordinación asíncrona. El estado separado de implementación/evidencia y los trabajos
+pendientes se mantienen en el
+[roadmap de implementación y verificación](../delivery/IMPLEMENTATION-ROADMAP.md).
 
 ## Requisitos del enunciado
 

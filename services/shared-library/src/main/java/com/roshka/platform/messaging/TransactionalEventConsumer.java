@@ -98,7 +98,7 @@ public abstract class TransactionalEventConsumer {
 
 	private void transferFailure(Message message, Channel channel, RuntimeException failure) throws IOException {
 		Object header = message.getMessageProperties().getHeaders().get("retry-attempt");
-		int attempt = header instanceof Number n ? Math.max(0, Math.min(3, n.intValue())) : 0;
+		int attempt = header instanceof Number n ? Math.clamp(n.intValue(), 0, 3) : 0;
 		boolean permanent = isPermanentFailure(failure);
 		String destination = permanent || attempt >= RETRY_DELAYS_SECONDS.length ? deadLetterQueue
 				: retryPrefix + RETRY_DELAYS_SECONDS[attempt];
