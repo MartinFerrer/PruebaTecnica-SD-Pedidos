@@ -11,25 +11,21 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
 public class WebConfiguration {
-  @Bean
-  RequestTransactions requestTransactions(
-      JdbcClient db, JsonCodec json, PlatformTransactionManager transactionManager) {
-    return new RequestTransactions(
-        db,
-        json,
-        transactionManager,
-        failure ->
-            failure instanceof BusinessException business
-                ? Optional.of(
-                    new RequestTransactions.Failure(
-                        status(business.kind()), business.code()))
-                : Optional.empty());
-  }
 
-  private static int status(BusinessException.Kind kind) {
-    return switch (kind) {
-      case NOT_FOUND -> 404;
-      case CONFLICT -> 409;
-    };
-  }
+	@Bean
+	RequestTransactions requestTransactions(JdbcClient db, JsonCodec json,
+			PlatformTransactionManager transactionManager) {
+		return new RequestTransactions(db, json, transactionManager,
+				failure -> failure instanceof BusinessException business
+						? Optional.of(new RequestTransactions.Failure(status(business.kind()), business.code()))
+						: Optional.empty());
+	}
+
+	private static int status(BusinessException.Kind kind) {
+		return switch (kind) {
+			case NOT_FOUND -> 404;
+			case CONFLICT -> 409;
+		};
+	}
+
 }

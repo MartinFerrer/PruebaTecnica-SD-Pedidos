@@ -13,97 +13,95 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Executes HTTP commands with a durable idempotency record in the service-owned database.
  *
- * <p>The executor is deliberately unaware of domain exceptions. Callers turn an expected domain
- * failure into a {@link Reply} inside the callback, while unexpected failures roll back the
- * transaction and remain exceptional.
+ * <p>
+ * The executor is deliberately unaware of domain exceptions. Callers turn an expected
+ * domain failure into a {@link Reply} inside the callback, while unexpected failures roll
+ * back the transaction and remain exceptional.
  */
 public final class IdempotencyExecutor {
-  public record Reply(int status, String body) {}
 
-  private final JdbcClient db;
-  private final JsonCodec json;
-  private final TransactionTemplate tx;
+	public record Reply(int status, String body) {
+	}
 
-  public IdempotencyExecutor(JdbcClient db, JsonCodec json, PlatformTransactionManager manager) {
-    this.db = db;
-    this.json = json;
-    this.tx = new TransactionTemplate(manager);
-    this.tx.setTimeout(15);
-  }
+	private final JdbcClient db;
 
-  public <T> T read(Supplier<T> work) {
-    return tx.execute(status -> work.get());
-  }
+	private final JsonCodec json;
 
-  public Reply write(
-      String operation, String key, Object request, Supplier<Reply> work) {
-    if (key == null || key.isBlank() || key.length() > 128) {
-      return problem(400, "INVALID_IDEMPOTENCY_KEY");
-    }
-    String fingerprint = fingerprint(request);
-    return tx.execute(
-        status -> {
-          db.sql("SET LOCAL lock_timeout = '3s'").update();
-          int claimed = claim(operation, key, fingerprint);
-          if (claimed == 0) return existing(operation, key, fingerprint);
+	private final TransactionTemplate tx;
 
-          Reply reply = Objects.requireNonNull(work.get(), "idempotency callback result");
-          db.sql(
-                  "UPDATE http_idempotency SET status=:status,body=:body "
-                      + "WHERE operation=:op AND key=:key")
-              .param("status", reply.status())
-              .param("body", reply.body())
-              .param("op", operation)
-              .param("key", key)
-              .update();
-          return reply;
-        });
-  }
+	public IdempotencyExecutor(JdbcClient db, JsonCodec json, PlatformTransactionManager manager) {
+		this.db = db;
+		this.json = json;
+		this.tx = new TransactionTemplate(manager);
+		this.tx.setTimeout(15);
+	}
 
-  public Reply success(int status, Object body) {
-    return new Reply(status, json.write(body));
-  }
+	public <T> T read(Supplier<T> work) {
+		return tx.execute(status -> work.get());
+	}
 
-  public Reply problem(int status, String code) {
-    return new Reply(status, json.write(ErrorResponse.of(status, code)));
-  }
+	public Reply write(String operation, String key, Object request, Supplier<Reply> work) {
+		if (key == null || key.isBlank() || key.length() > 128) {
+			return problem(400, "INVALID_IDEMPOTENCY_KEY");
+		}
+		String fingerprint = fingerprint(request);
+		return tx.execute(status -> {
+			db.sql("SET LOCAL lock_timeout = '3s'").update();
+			int claimed = claim(operation, key, fingerprint);
+			if (claimed == 0) {
+				return existing(operation, key, fingerprint);
+			}
 
-  private int claim(String operation, String key, String fingerprint) {
-    return db.sql(
-            "INSERT INTO http_idempotency(operation, key, fingerprint) "
-                + "VALUES (:op,:key,:hash) ON CONFLICT DO NOTHING")
-        .param("op", operation)
-        .param("key", key)
-        .param("hash", fingerprint)
-        .update();
-  }
+			Reply reply = Objects.requireNonNull(work.get(), "idempotency callback result");
+			db.sql("UPDATE http_idempotency SET status=:status,body=:body WHERE operation=:op AND key=:key")
+				.param("status", reply.status())
+				.param("body", reply.body())
+				.param("op", operation)
+				.param("key", key)
+				.update();
+			return reply;
+		});
+	}
 
-  private Reply existing(String operation, String key, String fingerprint) {
-    return db.sql(
-            "SELECT fingerprint,status,body FROM http_idempotency "
-                + "WHERE operation=:op AND key=:key")
-        .param("op", operation)
-        .param("key", key)
-        .query(
-            (rs, row) ->
-                fingerprint.equals(rs.getString(1))
-                    ? new Reply(rs.getInt(2), rs.getString(3))
-                    : problem(409, "IDEMPOTENCY_CONFLICT"))
-        .single();
-  }
+	public Reply success(int status, Object body) {
+		return new Reply(status, json.write(body));
+	}
 
-  private String fingerprint(Object request) {
-    return digest(json.write(request));
-  }
+	public Reply problem(int status, String code) {
+		return new Reply(status, json.write(ErrorResponse.of(status, code)));
+	}
 
-  private static String digest(String value) {
-    try {
-      return HexFormat.of()
-          .formatHex(
-              MessageDigest.getInstance("SHA-256")
-                  .digest(value.getBytes(StandardCharsets.UTF_8)));
-    } catch (java.security.NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 is required by the runtime", e);
-    }
-  }
+	private int claim(String operation, String key, String fingerprint) {
+		return db
+			.sql("INSERT INTO http_idempotency(operation, key, fingerprint) " 
+					+ "VALUES (:op,:key,:hash) ON CONFLICT DO NOTHING")
+			.param("op", operation)
+			.param("key", key)
+			.param("hash", fingerprint)
+			.update();
+	}
+
+	private Reply existing(String operation, String key, String fingerprint) {
+		return db.sql("SELECT fingerprint,status,body FROM http_idempotency WHERE operation=:op AND key=:key")
+			.param("op", operation)
+			.param("key", key)
+			.query((rs, row) -> fingerprint.equals(rs.getString(1)) ? new Reply(rs.getInt(2), rs.getString(3))
+					: problem(409, "IDEMPOTENCY_CONFLICT"))
+			.single();
+	}
+
+	private String fingerprint(Object request) {
+		return digest(json.write(request));
+	}
+
+	private static String digest(String value) {
+		try {
+			return HexFormat.of()
+				.formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+		}
+		catch (java.security.NoSuchAlgorithmException e) {
+			throw new IllegalStateException("SHA-256 is required by the runtime", e);
+		}
+	}
+
 }

@@ -70,6 +70,16 @@ Excepciones: documentación, formato y cambios puramente declarativos que no alt
 - Si falla fuzzing o una prueba aleatoria, conservar y reportar la semilla y agregarla al corpus de regresión antes de corregir.
 - Los commits deben ser pequeños, coherentes y no mezclar refactors ajenos al cambio.
 
+## Formato de código
+
+- Seguir `docs/development/CODE-STYLE.md` tanto al crear como al modificar archivos.
+- Mantener los límites de línea y el espaciado vertical con criterio semántico; no aceptar
+  automáticamente un resultado del formateador sin leer el diff.
+- Checkstyle informa advertencias y no bloquea el build. Revisarlas en cada cambio y corregir las que
+  afecten al código modificado, sin desactivar reglas globales para ocultar hallazgos.
+- No agregar hooks, reformateo al guardar ni una puerta obligatoria de formato sin autorización
+  explícita.
+
 ## Skills del repositorio
 
 - `dry-refactoring` (`.agents/skills/dry-refactoring/SKILL.md`) es la guía obligatoria para detectar duplicación con jscpd y refactorizarla. Leer la skill completa antes de usarla, revisar cada clon en contexto y volver a ejecutar la detección después de cada refactor.

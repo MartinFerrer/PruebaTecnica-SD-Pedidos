@@ -19,82 +19,48 @@ import tools.jackson.databind.JsonNode;
 
 @Component
 public class EventConsumer extends TransactionalEventConsumer {
-  private final ApplyReservationResultUseCase reservationResults;
-  private final CompleteInventoryCancellationUseCase cancellationResults;
 
-  public EventConsumer(
-      JsonCodec json,
-      JdbcClient db,
-      PlatformTransactionManager manager,
-      ConfirmedPublisher publisher,
-      ApplyReservationResultUseCase reservationResults,
-      CompleteInventoryCancellationUseCase cancellationResults) {
-    super(
-        json,
-        db,
-        manager,
-        publisher,
-        "order",
-        "order.in",
-        "order.retry.",
-        "order.dlq",
-        "inventory-service");
-    this.reservationResults = reservationResults;
-    this.cancellationResults = cancellationResults;
-  }
+	private final ApplyReservationResultUseCase reservationResults;
 
-  @RabbitListener(queues = "order.in")
-  public void receive(Message message, Channel channel) throws IOException {
-    consume(message, channel);
-  }
+	private final CompleteInventoryCancellationUseCase cancellationResults;
 
-  @Override
-  protected boolean isPermanentFailure(RuntimeException failure) {
-    return super.isPermanentFailure(failure) || failure instanceof BusinessException;
-  }
+	public EventConsumer(JsonCodec json, JdbcClient db, PlatformTransactionManager manager,
+			ConfirmedPublisher publisher, ApplyReservationResultUseCase reservationResults,
+			CompleteInventoryCancellationUseCase cancellationResults) {
+		super(json, db, manager, publisher, "order", "order.in", "order.retry.", "order.dlq", "inventory-service");
+		this.reservationResults = reservationResults;
+		this.cancellationResults = cancellationResults;
+	}
 
-  @Override
-  protected void handle(JsonNode event) {
-    UUID id = UUID.fromString(requiredText(event, "aggregateId"));
-    JsonNode payload = event.get("payload");
-    String type = requiredText(event, "eventType");
-    long version = payload.path("requestOrderVersion").asLong();
-    switch (type) {
-      case "StockReserved" ->
-          reservationResults.apply(
-              new ApplyReservationResultUseCase.Reserved(
-                  id,
-                  version,
-                  List.of(
-                      json()
-                          .mapper
-                          .treeToValue(
-                              required(payload, "items"),
-                              ApplyReservationResultUseCase.Item[].class))));
-      case "StockRejected" ->
-          reservationResults.apply(
-              new ApplyReservationResultUseCase.Rejected(
-                  id,
-                  version,
-                  List.of(
-                      json()
-                          .mapper
-                          .treeToValue(
-                              required(payload, "unavailableItems"),
-                              ApplyReservationResultUseCase.Shortage[].class))));
-      case "StockReleased" ->
-          cancellationResults.complete(
-              new CompleteInventoryCancellationUseCase.Result(
-                  id,
-                  version,
-                  requiredText(payload, "outcome"),
-                  List.of(
-                      json()
-                          .mapper
-                          .treeToValue(
-                              required(payload, "releasedItems"),
-                              CompleteInventoryCancellationUseCase.Item[].class))));
-      default -> throw new IllegalArgumentException("UNSUPPORTED_EVENT");
-    }
-  }
+	@RabbitListener(queues = "order.in")
+	public void receive(Message message, Channel channel) throws IOException {
+		consume(message, channel);
+	}
+
+	@Override
+	protected boolean isPermanentFailure(RuntimeException failure) {
+		return super.isPermanentFailure(failure) || failure instanceof BusinessException;
+	}
+
+	@Override
+	protected void handle(JsonNode event) {
+		UUID id = UUID.fromString(requiredText(event, "aggregateId"));
+		JsonNode payload = event.get("payload");
+		String type = requiredText(event, "eventType");
+		long version = payload.path("requestOrderVersion").asLong();
+		switch (type) {
+			case "StockReserved" ->
+				reservationResults.apply(new ApplyReservationResultUseCase.Reserved(id, version, List.of(json().mapper
+					.treeToValue(required(payload, "items"), ApplyReservationResultUseCase.Item[].class))));
+			case "StockRejected" -> reservationResults.apply(new ApplyReservationResultUseCase.Rejected(id, version,
+					List.of(json().mapper.treeToValue(required(payload, "unavailableItems"),
+							ApplyReservationResultUseCase.Shortage[].class))));
+			case "StockReleased" -> cancellationResults
+				.complete(new CompleteInventoryCancellationUseCase.Result(id, version, requiredText(payload, "outcome"),
+						List.of(json().mapper.treeToValue(required(payload, "releasedItems"),
+								CompleteInventoryCancellationUseCase.Item[].class))));
+			default -> throw new IllegalArgumentException("UNSUPPORTED_EVENT");
+		}
+	}
+
 }

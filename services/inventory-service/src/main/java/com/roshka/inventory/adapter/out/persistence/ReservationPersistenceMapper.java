@@ -10,22 +10,20 @@ import org.springframework.stereotype.Component;
 
 @Component
 class ReservationPersistenceMapper {
-  private final JsonCodec json;
 
-  ReservationPersistenceMapper(JsonCodec json) {
-    this.json = json;
-  }
+	private final JsonCodec json;
 
-  Reservation toDomain(UUID orderId, ResultSet result) throws SQLException {
-    return new Reservation(
-        orderId,
-        result.getString("state"),
-        result.getLong("last_order_version"),
-        result.getLong("version"),
-        List.of(json.read(result.getString("items"), Reservation.Item[].class)));
-  }
+	ReservationPersistenceMapper(JsonCodec json) {
+		this.json = json;
+	}
 
-  String itemsToJson(Reservation reservation) {
-    return json.write(reservation.items());
-  }
+	Reservation toDomain(UUID orderId, ResultSet result) throws SQLException {
+		return new Reservation(orderId, result.getString("state"), result.getLong("last_order_version"),
+				result.getLong("version"), List.of(json.read(result.getString("items"), Reservation.Item[].class)));
+	}
+
+	String itemsToJson(Reservation reservation) {
+		return json.write(reservation.items());
+	}
+
 }

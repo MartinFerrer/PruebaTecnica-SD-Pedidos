@@ -10,13 +10,17 @@ import java.util.List;
 import java.util.UUID;
 
 public final class OrderRequest {
-  private OrderRequest() {}
 
-  public record Item(
-      @NotNull UUID productId,
-      @NotNull @Min(1) @Max(1_000_000_000) Long quantity) {}
+	private OrderRequest() {
+	}
 
-  public record Create(@NotEmpty @Size(max = 100) List<@Valid Item> items) {}
+	public record Item(@NotNull UUID productId, @NotNull @Min(1) @Max(1_000_000_000) Long quantity) {
+	}
 
-  public record Cancel(@Size(max = 200) String reason) {}
+	public record Create(@NotEmpty @Size(max = 100) List<@Valid Item> items) {
+	}
+
+	public record Cancel(@Size(max = 200) String reason) {
+	}
+
 }

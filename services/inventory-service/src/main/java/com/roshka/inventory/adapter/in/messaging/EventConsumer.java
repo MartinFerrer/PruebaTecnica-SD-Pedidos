@@ -19,59 +19,42 @@ import tools.jackson.databind.JsonNode;
 
 @Component
 public class EventConsumer extends TransactionalEventConsumer {
-  private final ReserveStockUseCase reserveStock;
-  private final CancelReservationUseCase cancelReservation;
 
-  public EventConsumer(
-      JsonCodec json,
-      JdbcClient db,
-      PlatformTransactionManager manager,
-      ConfirmedPublisher publisher,
-      ReserveStockUseCase reserveStock,
-      CancelReservationUseCase cancelReservation) {
-    super(
-        json,
-        db,
-        manager,
-        publisher,
-        "inventory",
-        "inventory.in",
-        "inventory.retry.",
-        "inventory.dlq",
-        "order-service");
-    this.reserveStock = reserveStock;
-    this.cancelReservation = cancelReservation;
-  }
+	private final ReserveStockUseCase reserveStock;
 
-  @RabbitListener(queues = "inventory.in")
-  public void receive(Message message, Channel channel) throws IOException {
-    consume(message, channel);
-  }
+	private final CancelReservationUseCase cancelReservation;
 
-  @Override
-  protected boolean isPermanentFailure(RuntimeException failure) {
-    return super.isPermanentFailure(failure) || failure instanceof BusinessException;
-  }
+	public EventConsumer(JsonCodec json, JdbcClient db, PlatformTransactionManager manager,
+			ConfirmedPublisher publisher, ReserveStockUseCase reserveStock,
+			CancelReservationUseCase cancelReservation) {
+		super(json, db, manager, publisher, "inventory", "inventory.in", "inventory.retry.", "inventory.dlq",
+				"order-service");
+		this.reserveStock = reserveStock;
+		this.cancelReservation = cancelReservation;
+	}
 
-  @Override
-  protected void handle(JsonNode event) {
-    UUID id = UUID.fromString(requiredText(event, "aggregateId"));
-    JsonNode payload = event.get("payload");
-    String type = requiredText(event, "eventType");
-    long version = event.get("aggregateVersion").asLong();
-    switch (type) {
-      case "OrderCreated" ->
-          reserveStock.reserve(
-              id,
-              version,
-              List.of(
-                  json()
-                      .mapper
-                      .treeToValue(
-                          required(payload, "items"),
-                          com.roshka.inventory.domain.Reservation.Item[].class)));
-      case "OrderCancelled" -> cancelReservation.cancel(id, version);
-      default -> throw new IllegalArgumentException("UNSUPPORTED_EVENT");
-    }
-  }
+	@RabbitListener(queues = "inventory.in")
+	public void receive(Message message, Channel channel) throws IOException {
+		consume(message, channel);
+	}
+
+	@Override
+	protected boolean isPermanentFailure(RuntimeException failure) {
+		return super.isPermanentFailure(failure) || failure instanceof BusinessException;
+	}
+
+	@Override
+	protected void handle(JsonNode event) {
+		UUID id = UUID.fromString(requiredText(event, "aggregateId"));
+		JsonNode payload = event.get("payload");
+		String type = requiredText(event, "eventType");
+		long version = event.get("aggregateVersion").asLong();
+		switch (type) {
+			case "OrderCreated" -> reserveStock.reserve(id, version, List.of(json().mapper
+				.treeToValue(required(payload, "items"), com.roshka.inventory.domain.Reservation.Item[].class)));
+			case "OrderCancelled" -> cancelReservation.cancel(id, version);
+			default -> throw new IllegalArgumentException("UNSUPPORTED_EVENT");
+		}
+	}
+
 }

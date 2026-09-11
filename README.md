@@ -15,6 +15,7 @@ La arquitectura acordada usa Java 26, Spring Boot 4.1.1, arquitectura hexagonal,
 - [Observabilidad y telemetría](docs/operations/OBSERVABILITY.md)
 - [Despliegue local y datos de demostración](docs/operations/LOCAL-DEPLOYMENT.md)
 - [Reglas para agentes](AGENTS.md)
+- [Guía de estilo de código](docs/development/CODE-STYLE.md)
 - [Verificación y pendientes de implementación](docs/testing/IMPLEMENTATION-VERIFICATION.md)
 
 ## Ejecutar localmente

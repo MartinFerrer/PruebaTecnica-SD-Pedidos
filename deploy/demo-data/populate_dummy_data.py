@@ -61,7 +61,11 @@ def wait_order(order_id, status, cancellation_status=None):
     while time.monotonic() < deadline:
         order = call("GET", f"{ORDER_URL}/orders/{order_id}")
         if order["status"] == status:
-            if cancellation_status is None or order.get("inventoryCancellationStatus") == cancellation_status:
+            cancellation_matches = (
+                cancellation_status is None
+                or order.get("inventoryCancellationStatus") == cancellation_status
+            )
+            if cancellation_matches:
                 return order
         time.sleep(0.2)
     raise RuntimeError(
@@ -144,16 +148,22 @@ def main():
     if not expected_orders.issubset({item["orderId"] for item in orders}):
         raise RuntimeError("One or more demo orders are missing from GET /orders")
 
-    print(json.dumps({
-        "products": product_ids,
-        "orders": {
-            "confirmed": confirmed_id,
-            "rejected": rejected_id,
-            "cancelled": cancelled_id,
-        },
-        "restockMovementId": restock["movementId"],
-        "result": "demo-data-ready",
-    }, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "products": product_ids,
+                "orders": {
+                    "confirmed": confirmed_id,
+                    "rejected": rejected_id,
+                    "cancelled": cancelled_id,
+                },
+                "restockMovementId": restock["movementId"],
+                "result": "demo-data-ready",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

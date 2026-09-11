@@ -5,5 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ReserveStockUseCase {
-  void reserve(UUID orderId, long orderVersion, List<Reservation.Item> items);
+
+	void reserve(UUID orderId, long orderVersion, List<Reservation.Item> items);
+
 }

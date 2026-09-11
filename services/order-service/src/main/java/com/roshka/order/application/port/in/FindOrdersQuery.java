@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.UUID;
 
 public interface FindOrdersQuery {
-  Order findById(UUID orderId);
 
-  List<Order> findAll();
+	Order findById(UUID orderId);
+
+	List<Order> findAll();
+
 }

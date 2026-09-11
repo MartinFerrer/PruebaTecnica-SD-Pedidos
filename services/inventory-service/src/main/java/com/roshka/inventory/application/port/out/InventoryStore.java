@@ -2,24 +2,26 @@ package com.roshka.inventory.application.port.out;
 
 import com.roshka.inventory.application.model.StockChange;
 import com.roshka.inventory.domain.Product;
-import java.util.Optional;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface InventoryStore {
-  void lockIdentity(String identity);
 
-  boolean skuExists(String sku);
+	void lockIdentity(String identity);
 
-  Optional<Product> find(UUID id, boolean lock);
+	boolean skuExists(String sku);
 
-  List<Product> findAll();
+	Optional<Product> find(UUID id, boolean lock);
 
-  void insert(Product product);
+	List<Product> findAll();
 
-  void update(Product product);
+	void insert(Product product);
 
-  Optional<StockChange> movement(UUID movementId);
+	void update(Product product);
 
-  void movement(String operation, Product before, Product after, StockChange result);
+	Optional<StockChange> movement(UUID movementId);
+
+	void movement(String operation, Product before, Product after, StockChange result);
+
 }

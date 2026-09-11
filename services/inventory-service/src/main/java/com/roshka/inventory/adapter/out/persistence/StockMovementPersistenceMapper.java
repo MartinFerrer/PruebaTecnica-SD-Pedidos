@@ -7,48 +7,27 @@ import org.springframework.stereotype.Component;
 
 @Component
 class StockMovementPersistenceMapper {
-  private final JsonCodec json;
 
-  StockMovementPersistenceMapper(JsonCodec json) {
-    this.json = json;
-  }
+	private final JsonCodec json;
 
-  StockChange fromJson(String value) {
-    StoredStockChange stored = json.read(value, StoredStockChange.class);
-    return new StockChange(
-        stored.productId(),
-        stored.movementId(),
-        stored.quantity(),
-        stored.previousOnHand(),
-        stored.onHand(),
-        stored.reserved(),
-        stored.available(),
-        stored.version(),
-        stored.reason());
-  }
+	StockMovementPersistenceMapper(JsonCodec json) {
+		this.json = json;
+	}
 
-  String toJson(StockChange change) {
-    return json.write(
-        new StoredStockChange(
-            change.productId(),
-            change.movementId(),
-            change.quantity(),
-            change.previousOnHand(),
-            change.onHand(),
-            change.reserved(),
-            change.available(),
-            change.version(),
-            change.reason()));
-  }
+	StockChange fromJson(String value) {
+		StoredStockChange stored = json.read(value, StoredStockChange.class);
+		return new StockChange(stored.productId(), stored.movementId(), stored.quantity(), stored.previousOnHand(),
+				stored.onHand(), stored.reserved(), stored.available(), stored.version(), stored.reason());
+	}
 
-  private record StoredStockChange(
-      UUID productId,
-      UUID movementId,
-      long quantity,
-      long previousOnHand,
-      long onHand,
-      long reserved,
-      long available,
-      long version,
-      String reason) {}
+	String toJson(StockChange change) {
+		return json.write(new StoredStockChange(change.productId(), change.movementId(), change.quantity(),
+				change.previousOnHand(), change.onHand(), change.reserved(), change.available(), change.version(),
+				change.reason()));
+	}
+
+	private record StoredStockChange(UUID productId, UUID movementId, long quantity, long previousOnHand, long onHand,
+			long reserved, long available, long version, String reason) {
+	}
+
 }
