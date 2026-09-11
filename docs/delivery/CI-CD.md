@@ -1,107 +1,69 @@
-# Diseño de CI/CD en GitHub
+# CI y preparación de release
 
-Estado: **CI base implementado en `.github/workflows/ci.yaml`; CD y campañas extensivas pendientes**
+El repositorio usa GitHub Actions con permisos de solo lectura, acciones fijadas por SHA y los
+mismos comandos `java scripts/Verify.java` disponibles localmente. Checkstyle informa advertencias
+sin imponer formato; las puertas funcionales sí bloquean el resultado.
 
-El workflow actual invoca `java scripts/Verify.java` con suites estables en una matriz de
-`ubuntu-latest` y `windows-latest`: ambos runners ejecutan el mismo alcance y el runner usa comandos
-portables (Maven Wrapper/local Maven y `docker compose`) para unitarios, integraciones reales, reglas hexagonales,
-cobertura, advertencias de Checkstyle, validación de Compose y arranque base. El formato sigue
-sujeto a revisión manual en los cambios; Checkstyle informa problemas básicos sin bloquear el build.
-No se ha ejecutado remotamente aún. Las secciones
-siguientes mantienen el diseño objetivo; análisis de seguridad adicionales, fuzzing guiado por
-cobertura extensivo y publicación en GHCR todavía no están implementados. Ver
-[evidencia y pendientes](../testing/IMPLEMENTATION-VERIFICATION.md) y la
-[guía de estilo](../development/CODE-STYLE.md). El orden de implementación, pruebas automáticas,
-validaciones manuales y criterios de cierre se mantienen en el
-[roadmap de implementación y verificación](IMPLEMENTATION-ROADMAP.md).
+## Evidencia remota
 
-## Principios
+La auditoría del 11 de septiembre de 2026 revisó ejecuciones reales del repositorio privado:
 
-- La misma verificación se ejecuta localmente y en CI mediante Maven instalado y comandos portables de Docker Compose.
-- CI es la prioridad: protege el ciclo TDD, contratos e invariantes de concurrencia antes de publicar artefactos.
-- Los jobs tienen permisos mínimos, concurrencia cancelable y dependencias/cache reproducibles.
-- Las acciones de terceros se fijan por SHA; Renovate o Dependabot proponen actualizaciones.
-- Ningún job de despliegue ignora una puerta fallida.
+- [ejecución verde de referencia](https://github.com/MartinFerrer/PruebaTecnica-SD-Pedidos/actions/runs/34605549152);
+- [ejecución que detectó la incompatibilidad de Testcontainers en `windows-latest`](https://github.com/MartinFerrer/PruebaTecnica-SD-Pedidos/actions/runs/34642530814).
 
-## Pull request: integración continua
+El segundo run confirmó que Java 26, Maven Wrapper y los tests sin infraestructura funcionan en
+ambos sistemas. El fallo de Windows no era funcional: el runner hospedado exponía Docker en modo
+Windows, no compatible con los contenedores Linux de Testcontainers. Por eso las comprobaciones
+portables conservan la matriz Windows/Linux y las puertas Docker se ejecutan en Ubuntu.
 
-```mermaid
-flowchart LR
-    A[Formato + análisis] --> B[Unit + ArchUnit]
-    B --> C[Integration con Testcontainers]
-    C --> D[Build de imágenes]
-    D --> E[Compose + Bruno]
-    E --> F[Concurrencia + recursos limitados smoke]
-    D --> G[SBOM + escaneo]
-    F --> H[Check requerido]
-    G --> H
+El mismo run mostró en Ubuntu que Bruno completaba las solicitudes pero no podía crear el reporte
+JUnit en el volumen del host. El runner ahora prepara su directorio con permisos de escritura para
+el contenedor. Ambas correcciones requieren un nuevo run verde sobre el commit que se etiquetará.
+
+La evidencia definitiva para un tag debe ser el run verde de `quality-gate` generado por el commit
+que se etiquetará; no se debe reutilizar un run de un commit anterior.
+
+## Puertas de pull request y `main`
+
+| Job | Sistemas | Entrada estable | Cobertura |
+|---|---|---|---|
+| `static-checks` | Ubuntu y Windows | `java scripts/Verify.java static` | OpenAPI, AsyncAPI, contratos observados y advertencias Checkstyle. |
+| `unit` | Ubuntu y Windows | `quick`, `property`, `fuzz` | Unitarios, ArchUnit, propiedades y fuzz smoke reproducible. |
+| `integration` | Ubuntu | `java scripts/Verify.java full` | PostgreSQL/RabbitMQ reales, Flyway, idempotencia, outbox/inbox, retries, DLQ y cobertura. |
+| `container` | Ubuntu | `java scripts/Verify.java container` | Validación Compose y build de ambas imágenes. |
+| `e2e` | Ubuntu | `java scripts/Verify.java acceptance` | Arranque, healthchecks, demo replay y colección Bruno. |
+| `concurrency-smoke` | Ubuntu | `concurrency`, `constrained` | Carreras deterministas, invariantes, dos réplicas, k6 y cuotas efectivas. |
+| `observability-smoke` | Ubuntu | `java scripts/Verify.java observability` | Perfil OTel/Prometheus/Tempo/Loki/Grafana y descubrimiento de targets. |
+| `quality-gate` | Ubuntu | agregador | Falla si cualquier puerta requerida falla, se cancela o se omite. |
+
+Los jobs pesados dependen de las puertas rápidas para evitar gasto cuando contratos o unitarios ya
+fallan. La protección de `main` debe requerir el check estable `quality-gate`, pull request y rama
+actualizada; debe impedir force-push y borrado.
+
+## Campañas programadas y manuales
+
+`.github/workflows/extended-verification.yaml` se ejecuta manualmente y semanalmente. Separa cuatro
+campañas Linux: 20 000 entradas de fuzzing sembrado, presión de recursos, caos de red con Toxiproxy
+y resiliencia de mensajería/concurrencia. Cada una conserva su semilla y configuración efectiva.
+
+## Reportes y secretos
+
+Cada job sube únicamente `reports/verification/` y, para integración, cobertura JaCoCo. La retención
+es de siete días. El runner registra Java, Maven, Docker, imágenes, semilla, límites y fallos
+inyectados, redacta variables con nombres sensibles y no sube bases de datos ni archivos `.env`.
+
+## Release `v1.0.0`
+
+El commit de release debe estar limpio, enviado a `main` y asociado a un `quality-gate` verde. El
+tag anotado se crea sobre ese mismo commit y se comprueba antes de publicarlo:
+
+```text
+git status --short
+git add -A
+git commit -m "Validar CI y preparar la demo para la versión 1.0.0"
+git push origin main
+# Esperar que quality-gate finalice correctamente para el commit anterior.
+git tag -a v1.0.0 -m "Versión 1.0.0"
+git show --no-patch --decorate v1.0.0
+git push origin v1.0.0
 ```
-
-Jobs propuestos:
-
-1. `static-checks`: Maven Enforcer, análisis y contratos; Checkstyle orienta y el formato se revisa manualmente.
-2. `unit`: unit tests, ArchUnit y reporte de cobertura.
-3. `integration`: PostgreSQL y RabbitMQ reales mediante Testcontainers, incluidas carreras y ventanas de fallo deterministas de outbox/inbox y retry.
-4. `container`: construir ambas imágenes sin publicar y escanearlas.
-5. `e2e`: Docker Compose, healthchecks y Bruno CLI.
-6. `concurrency-smoke`: múltiples réplicas, k6 corto y smoke con cuotas efectivas de recursos e interrupción recuperable de red; verifica convergencia e invariantes finales.
-7. `observability-smoke`: levanta el perfil opcional, comprueba healthchecks y valida que Prometheus descubra las apps y RabbitMQ.
-8. `quality-gate`: agrega resultados para protección de `main`; falla ante un job requerido fallido, cancelado u omitido. No usar filtros que omitan silenciosamente pruebas requeridas de un cambio de comportamiento.
-
-Los property tests rápidos y el fuzz smoke reproducible forman parte de la puerta de PR mediante
-`java scripts/Verify.java property` y `java scripts/Verify.java fuzz`. El fuzzing guiado por
-cobertura largo y la degradación severa de recursos no bloquean cada PR porque consumirían demasiado
-tiempo, pero cualquier semilla de regresión descubierta sí se agrega a la suite obligatoria.
-
-Se guardan reportes de tests, cobertura, logs de Compose y resultados k6 solo cuando ayudan a diagnóstico. No se suben secretos ni dumps con datos sensibles.
-
-## Workflows opcionales programados o manuales
-
-- `fuzz-extended`: jqwik con muchas iteraciones, Jazzer para superficies puras y escenarios distribuidos con semilla.
-- `resource-pressure`: override Compose `constrained`, k6 y matriz extendida de invariantes y recuperación.
-- `network-chaos`: Toxiproxy y, en runner Linux apropiado, `tc/netem` para jitter/pérdida.
-- `resilience`: matriz extendida de reinicios en ventanas de outbox/publisher confirm e inbox/ACK, más replay de DLQ; no sustituye los casos deterministas obligatorios de `integration`.
-
-Una falla funcional en estas suites bloquea la promoción hasta convertirse en un caso reproducible. Los umbrales de rendimiento bajo recursos artificialmente bajos se reportan por separado de las invariantes de consistencia.
-
-CI valida la corrección actual, pero por sí solo no demuestra que se practicó TDD: el agente registra prueba nueva roja, causa y posterior ejecución verde según `AGENTS.md`. Durante el bootstrap se crean primero los comandos locales y luego los workflows que los invocan. Las suites fallidas guardan semillas, historiales, límites efectivos y fallos inyectados, no solo resultados de k6.
-
-## Main y releases: entrega continua secundaria
-
-Tras el merge a `main`:
-
-- repetir las puertas críticas;
-- construir una vez cada imagen;
-- etiquetar por commit SHA y publicar en GHCR;
-- generar SBOM y attestation de procedencia;
-- producir el bundle Compose que referencia digests inmutables;
-- ejecutar un smoke test usando exactamente esos artefactos.
-
-En un tag semántico:
-
-- agregar tags de versión sin reconstruir artefactos distintos;
-- crear release y notas;
-- promover los mismos digests al entorno elegido, con GitHub Environment y aprobación si corresponde.
-
-GitHub documenta la publicación en GHCR y las attestations de artefactos:
-
-- [Publicar imágenes Docker](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images)
-- [Procedencia mediante artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
-
-Sin un host objetivo, el alcance llega hasta **continuous delivery**: imágenes verificadas y publicadas en GHCR. No se configura despliegue automático a infraestructura remota.
-
-## Mantenimiento
-
-- CodeQL/escaneo de dependencias programado y en cambios relevantes.
-- Dependabot/Renovate para Maven, Docker y GitHub Actions.
-- Las pruebas extensas no reemplazan los smoke de concurrencia y resiliencia requeridos en PR.
-
-## Protección de rama
-
-Al crear el repositorio GitHub se configurará:
-
-- pull request obligatorio;
-- `quality-gate` requerido y actualizado con la cabeza de la rama;
-- conversaciones resueltas;
-- prohibición de force-push y borrado de `main`;
-- revisión adicional para cambios en workflows, contratos o migraciones.

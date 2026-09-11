@@ -1,6 +1,6 @@
 # Sistema distribuido de pedidos e inventario
 
-Primera implementación funcional de Order e Inventory, con contratos REST/eventos, persistencia separada y coordinación asíncrona. La fase sigue siendo `IMPLEMENTACION`.
+Implementación funcional de Order e Inventory con contratos REST/eventos, persistencia separada y coordinación asíncrona. Cubre los endpoints, idempotencia, mensajería at-least-once, concurrencia y entregables de prueba solicitados; además incluye arquitectura, observabilidad y reglas para agentes.
 
 La arquitectura acordada usa Java 26, Spring Boot 4.1.1, arquitectura hexagonal, PostgreSQL, RabbitMQ, Docker Compose, pruebas automatizadas y CI/CD en GitHub.
 
@@ -11,12 +11,10 @@ La arquitectura acordada usa Java 26, Spring Boot 4.1.1, arquitectura hexagonal,
 - [Trazabilidad de requisitos y decisiones](docs/architecture/REQUIREMENTS-TRACEABILITY.md)
 - [Estrategia de pruebas](docs/testing/TEST-STRATEGY.md)
 - [Diseño de CI/CD](docs/delivery/CI-CD.md)
-- [Roadmap de implementación y verificación](docs/delivery/IMPLEMENTATION-ROADMAP.md)
 - [Observabilidad y telemetría](docs/operations/OBSERVABILITY.md)
 - [Despliegue local y datos de demostración](docs/operations/LOCAL-DEPLOYMENT.md)
 - [Reglas para agentes](AGENTS.md)
 - [Guía de estilo de código](docs/development/CODE-STYLE.md)
-- [Verificación y pendientes de implementación](docs/testing/IMPLEMENTATION-VERIFICATION.md)
 
 ## Ejecutar localmente
 
@@ -29,7 +27,8 @@ docker compose up --build --wait --wait-timeout 180
 - RabbitMQ Management: `http://127.0.0.1:15672`, usuario `app`, contraseña configurada en `.env`.
 - Readiness de cada API: `/actuator/health/readiness`.
 
-Esta  tabla reúne todos los endpoints REST básicos; cada enlace lleva a la operación y al esquema de body correspondiente en
+## Endpoints REST del API
+Esta tabla reúne todos los endpoints REST básicos; cada enlace lleva a la operación y al esquema de body correspondiente en
 el contrato OpenAPI.
 
 | Servicio y operación | Body | Headers y parámetros | Especificación detallada |
@@ -53,9 +52,26 @@ absoluto en el cliente.
 `productId` y `orderId` son UUID devueltos por los respectivos `POST`. Los cuerpos REST están
 definidos en `contracts/openapi/`. Para detener conservando datos: `docker compose down`.
 
+## RabbitMQ: elección y garantía de entrega
+
+Se eligió RabbitMQ porque el sistema necesita comunicación asíncrona operacional entre pocos servicios, routing, acknowledgements, reintentos y dead-letter queues. No se requiere el throughput, la retención extensa ni las capacidades de streaming de Kafka. RabbitMQ también reduce el consumo de recursos y la complejidad del despliegue solicitado comparado a soluciones como Kafka.
+Factores concretos de la implementación:
+- **Garantía:** at-least-once. Mensajes persistentes, quorum queues durables, publicación enrutable con publisher confirms y ACK manual después del commit local.
+- **Duplicados:** son esperados y tratados acordemente. Cada consumidor usa inbox transaccional, `eventId` estable e invariantes/versiones de agregado.
+- **Reintentos:** tres demoras con TTL de 1, 5 y 30 segundos; transferencias a retry/DLQ confirmadas antes del ACK original y retorno TTL mediante dead-lettering at-least-once. No se usa requeue inmediato infinito. Reconexión y relay outbox usan backoff/jitter; outbox no descarta eventos por intentos agotados.
+- **Mensajes no procesables:** errores permanentes o reintentos agotados pasan a una DLQ (dead-letter queue) con causa, headers originales y procedimiento de replay. El replay conserva `eventId`.
+- **Orden:** no se presupone orden global. `aggregateVersion`, locks por recurso y máquinas de estado resuelven eventos duplicados o fuera de orden.
+
+PostgreSQL y RabbitMQ se coordinan mediante transactional outbox/inbox, aceptando duplicados controlados en lugar de una transacción distribuida donde se requeriria locking y protocolos como two-phase commit.
+
+Docker compose local usa un nodo RabbitMQ y no representa alta disponibilidad de producción. La
+consistencia eventual requiere recuperar dependencias y ejecutar replay de mensajes en DLQ (dead-letter queue) cuando
+corresponda.
+
+### Datos de prueba
+
 Para cargar un escenario repetible con cuatro productos y pedidos confirmado, rechazado y
 cancelado, ejecute después del arranque:
-
 ```text
 docker compose --profile demo-data run --build --rm demo-data
 ```
@@ -64,23 +80,12 @@ operaciones adicionales ni volver a sumar stock.
 
 Como alternativa, con Order e Inventory ya levantados y publicados en `localhost`, se puede
 ejecutar directamente el script sin construir el contenedor:
-```tex
+```text
 python deploy/demo-data/populate_dummy_data.py --inventory-url http://localhost:18082 --order-url http://localhost:18081
 ```
 La ejecución directa requiere Python 3.14 o compatible y usa las mismas APIs públicas que la
 alternativa Compose.
 
-## RabbitMQ: elección y garantía de entrega
-
-Se eligió RabbitMQ porque el sistema necesita comunicación asíncrona operacional entre pocos servicios, routing, acknowledgements, reintentos y dead-letter queues. No requiere el throughput, la retención extensa ni las capacidades de streaming de Kafka; RabbitMQ también reduce el consumo de recursos y la complejidad del despliegue solicitado. Factores concretos de la implementación.
-
-- **Garantía:** at-least-once. Mensajes persistentes, quorum queues durables, publicación enrutable con publisher confirms y ACK manual después del commit local.
-- **Duplicados:** son esperados y tratados acordemente. Cada consumidor usa inbox transaccional, `eventId` estable e invariantes/versiones de agregado.
-- **Reintentos:** tres demoras con TTL de 1, 5 y 30 segundos; transferencias a retry/DLQ confirmadas antes del ACK original y retorno TTL mediante dead-lettering at-least-once. No se usa requeue inmediato infinito. Reconexión y relay outbox usan backoff/jitter; outbox no descarta eventos por intentos agotados.
-- **Mensajes no procesables:** errores permanentes o reintentos agotados pasan a una DLQ con causa, headers originales y procedimiento de replay. El replay conserva `eventId`.
-- **Orden:** no se presupone orden global. `aggregateVersion`, locks por recurso y máquinas de estado resuelven eventos duplicados o fuera de orden.
-
-Los ACK del consumidor y los publisher confirms no constituyen two-phase commit. PostgreSQL y RabbitMQ se coordinan mediante transactional outbox/inbox, aceptando duplicados controlados en lugar de una transacción distribuida.
 
 ## Observabilidad
 
@@ -110,13 +115,15 @@ docker compose -f compose.yaml -f deploy/compose/observability.yaml --profile ob
 ```
 Esto borra todos los datos locales de Order e Inventory, no solo los creados por `demo-data`.
 
-## Verificación reproducible
+## Desarrollo y verificación reproducible
 
 Las puertas multiplataforma se ejecutan desde el root con Java 26:
 ```text
 java scripts/Verify.java quick
 java scripts/Verify.java full
+java scripts/Verify.java static
 java scripts/Verify.java contracts
+java scripts/Verify.java container
 java scripts/Verify.java acceptance
 java scripts/Verify.java concurrency
 java scripts/Verify.java property --seed RANDOMSEED
@@ -143,28 +150,6 @@ necesaria para el desarrollo normal.
 con entradas generadas y un corpus pequeño, sin levantar infraestructura por iteración. Ambos
 guardan semilla, versiones y resultados bajo `reports/verification/`.
 
-## Desarrollo y verificación
-
-Para ejecutar el runner se requiere Java 26; Docker es necesario para Testcontainers y Compose.
-Maven no es obligatorio: el wrapper incluido fija Maven 3.9.16.
-```text
-java scripts/Verify.java quick
-java scripts/Verify.java full
-java scripts/Verify.java acceptance
-```
-En Windows también se puede usar `scripts\verify.cmd quick`, `scripts\verify.cmd full` y
-`scripts\verify.cmd acceptance`; en POSIX, `sh scripts/verify.sh quick` usa el mismo runner.
-Cada ejecución deja metadata, logs sanitizados y resultados en
-`reports/verification/<suite>/<run-id>/`. k6 conserva su resumen y los identificadores de instancia
-observados junto con el log de la ejecución.
-
-### Estado de las suites
-
-`constrained` ejecuta el smoke de cuotas efectivas, demo-data, Bruno y presión k6 bajo el override
-versionado. `chaos` ejecuta el perfil Toxiproxy y conserva configuración, logs y estado de colas.
-`property` y `fuzz` son puertas rápidas reproducibles; el fuzzing guiado por cobertura prolongado
-queda reservado para el workflow manual/programado de CI.
-
 ### Maven
 
 Wrapper incluido:
@@ -177,14 +162,7 @@ Maven instalado:
 mvn -B -ntp clean verify
 ```
 
-Ambas opciones requieren Java 26; el wrapper descarga Maven la primera vez.
-
-## Alcance y estado
-
-Los endpoints base, reservas atómicas, cancelaciones, outbox/inbox, idempotencia HTTP, contratos,
-carreras deterministas, invariantes, réplicas, cuotas, property tests, fuzz smoke y caos corto están
-implementados. Hay pruebas automatizadas y un workflow de CI preparado; su ejecución remota requiere
-inicializar y publicar el repositorio. El informe de verificación distingue las comprobaciones
-ejecutadas de las pendientes.
-
-Compose local usa un nodo RabbitMQ (una sola instancia). La consistencia eventual requiere recuperación de dependencias y replay de mensajes en DLQ cuando corresponda. Quedan pendientes fuzzing extensivo y publicación CD en GHCR.
+Ambas opciones requieren Java 26; el wrapper descarga Maven la primera vez. Docker es necesario para
+las suites con Testcontainers, Compose, Bruno y k6. El workflow principal separa contratos,
+unitarios, integración, imágenes, e2e, concurrencia y observabilidad; `quality-gate` exige que todas
+terminen correctamente.

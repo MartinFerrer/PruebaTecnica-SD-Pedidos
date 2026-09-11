@@ -1,7 +1,7 @@
 # Arquitectura del sistema
 
-Estado: **Aceptada tras revisión final; fase IMPLEMENTACION**  
-Alcance actual: primera implementación del despliegue base. El [informe de verificación](../testing/IMPLEMENTATION-VERIFICATION.md) distingue funcionalidades disponibles de extensiones pendientes.
+Estado: **Implementada y preparada para validación de release**
+Alcance actual: demo funcional con verificación local reproducible y puertas equivalentes en CI.
 
 Detalle de persistencia de la primera implementación: Inventory almacena los ítems de cada reserva como JSON en la fila del agregado, bajo el mismo lock y transacción. La tabla de detalle descrita conceptualmente no es necesaria para el acceso actual; no hay consultas cruzadas entre servicios. Cualquier evolución del esquema se realizará mediante una migración hacia adelante.
 
@@ -504,6 +504,6 @@ La responsabilidad y justificación de cada contenedor se desarrolla en `docs/op
 
 ## 15. Calidad y entrega aceptadas
 
-El ciclo obligatorio es contrato/criterio, prueba roja comprobada, implementación mínima, refactor y mismas puertas locales que CI. Se configura JUnit/ArchUnit y Testcontainers antes de implementar comportamiento; Bruno valida aceptación y k6 carga concurrente. Cada PR ejecuta un smoke multirréplica y de recursos limitados. El fuzzing extensivo (jqwik/Jazzer) y estrés/caos prolongado son opcionales; sus fallos se incorporan como regresiones obligatorias. El detalle está en [TEST-STRATEGY.md](../testing/TEST-STRATEGY.md) y las reglas de agentes en [AGENTS.md](../../AGENTS.md).
+El ciclo obligatorio es contrato/criterio, prueba roja comprobada, implementación mínima, refactor y mismas puertas locales que CI. Se configura JUnit/ArchUnit y Testcontainers antes de implementar comportamiento; Bruno valida aceptación y k6 carga concurrente. Cada PR ejecuta un smoke multirréplica y de recursos limitados. El fuzzing sembrado y el estrés/caos prolongado se ejecutan en campañas aisladas; sus fallos se incorporan como regresiones obligatorias. El detalle está en [TEST-STRATEGY.md](../testing/TEST-STRATEGY.md) y las reglas de agentes en [AGENTS.md](../../AGENTS.md).
 
 CI es prioritario. CD entrega en GHCR imágenes verificadas por digest con SBOM y procedencia, sin despliegue remoto hasta definir un entorno. [CI-CD.md](../delivery/CI-CD.md) define las puertas; [LOCAL-DEPLOYMENT.md](../operations/LOCAL-DEPLOYMENT.md) define datos de demostración repetibles y el despliegue simple. Estas decisiones quedan consolidadas aquí y en los flujos finales; no hay decisiones de arquitectura bloqueantes abiertas. La compatibilidad del conjunto de herramientas y las garantías de ejecución se comprobarán durante la implementación, no se dan por probadas por este diseño.

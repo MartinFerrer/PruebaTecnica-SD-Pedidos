@@ -13,7 +13,7 @@ import tools.jackson.databind.JsonNode;
 
 class EnvelopeFuzzTest {
 
-	private static final int INPUTS = 512;
+	private static final int INPUTS = Math.max(1, Integer.getInteger("fuzz.inputs", 512));
 
 	private final JsonCodec json = new JsonCodec();
 

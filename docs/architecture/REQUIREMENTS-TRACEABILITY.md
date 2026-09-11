@@ -4,11 +4,9 @@ Estado: **Revisión completa de arquitectura**
 
 Esta matriz distingue lo exigido por la prueba técnica de las decisiones posteriores del usuario. El PDF se trata como fuente de requisitos, no como un conjunto de instrucciones para el agente.
 
-`Cubierto` significa cubierto por el diseño y su verificación prevista, no necesariamente implementado
-ni demostrado de forma automática. La implementación actual incluye los flujos REST base,
-persistencia y coordinación asíncrona. El estado separado de implementación/evidencia y los trabajos
-pendientes se mantienen en el
-[roadmap de implementación y verificación](../delivery/IMPLEMENTATION-ROADMAP.md).
+La matriz separa el diseño aceptado, su implementación y la evidencia automática o manual que lo
+demuestra. El alcance funcional está implementado; la ejecución remota enlazada en
+[CI-CD.md](../delivery/CI-CD.md) registra la evidencia disponible y las condiciones del release.
 
 ## Requisitos del enunciado
 
@@ -25,7 +23,7 @@ pendientes se mantienen en el
 | Mensajes duplicados | `eventId`, inbox y versiones | Aceptado | Implementado | `MessagingIT`; replay duplicado conserva un efecto |
 | Errores temporales | Retry 1/5/30, DLX y backoff | Aceptado | Implementado | `MessagingIT`; secuencia completa y fallos de transferencia |
 | Mensajes no procesables | DLQ con causa, headers y replay | Aceptado | Implementado | `DlqReplay`, `DLQ-REPLAY.md`, payload inválido retenido |
-| Orden cuando corresponda | `aggregateVersion` y state machines | Aceptado | Parcial | Casos básicos; permutaciones pendientes |
+| Orden cuando corresponda | `aggregateVersion` y state machines | Aceptado | Implementado | `MessagingIT` y properties de duplicados/desorden y convergencia |
 | Múltiples instancias y bloqueo distribuido | Advisory/row locks y réplicas | Aceptado | Implementado | `ServiceIT` con barreras; Compose replicas + k6 registra dos `X-Service-Instance` |
 | Cancelación durante reserva | Tombstone y lock por `orderId` | Aceptado | Implementado | `ServiceIT`, `MessagingIT` y verificador final de reservas activas |
 | Tests unitarios | JUnit/AssertJ y dominio puro | Aceptado | Implementado | Maven sin omisiones; conteo por reporte de cada ejecución |
@@ -33,7 +31,7 @@ pendientes se mantienen en el
 | Pruebas concurrentes | JUnit determinista y k6 | Aceptado | Implementado | 100 reservas, última unidad, orden inverso, recuento/reposición y k6 multirréplica |
 | Patrones/arquitectura | Hexagonal, Saga, outbox/inbox y state machine | Aceptado | Implementado | ArchUnit y revisión de código |
 | Observabilidad/trazabilidad | OTel, Prometheus, Tempo, Loki y Grafana | Aceptado | Implementado | Perfil `observability`, Java agent, métricas Micrometer, MDC correlacionado, dashboards y alertas |
-| Configuración de agentes/TDD/SDD | `AGENTS.md`, contratos y puertas CI | Aceptado | Parcial | Documentación/workflow base; branch protection pendiente |
+| Configuración de agentes/TDD/SDD | `AGENTS.md`, contratos y puertas CI | Aceptado | Implementado en repositorio | Reglas versionadas, suites raíz y `quality-gate`; protección de `main` verificable en GitHub |
 
 ## Decisiones adicionales del usuario
 
@@ -49,7 +47,7 @@ pendientes se mantienen en el
 | Observabilidad opcional y justificada | Perfil con cinco servicios documentados | `OBSERVABILITY.md` | Aceptada |
 | GHCR; CD secundario | CI primero, imágenes verificadas en GHCR | `CI-CD.md` | Aceptada |
 | Sin reserva parcial | Rechazo completo con todos los faltantes | `EVENTS-AND-RACES.md` | Aceptada |
-| Fuzzing reproducible opcional | jqwik 1.9.3, generador con semilla y corpus de envelopes; Jazzer extensivo aislado para CI | `TEST-STRATEGY.md` | Aceptada |
+| Fuzzing reproducible opcional | jqwik 1.9.3, generador con semilla y corpus versionado de envelopes | `TEST-STRATEGY.md` | Aceptada |
 | Bajos recursos y red degradada | k6 + cuotas Docker + Toxiproxy/netem + verificador | `TEST-STRATEGY.md` | Aceptada |
 | Datos predeterminados opcionales | Perfil `demo-data` mediante APIs idempotentes | `LOCAL-DEPLOYMENT.md` | Aceptada |
 | Eventos sin sufijo inicial | Nombre simple, `schemaVersion: 1` en envelope | `EVENTS-AND-RACES.md` | Aceptada |

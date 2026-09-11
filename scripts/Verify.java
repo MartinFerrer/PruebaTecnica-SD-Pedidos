@@ -25,8 +25,8 @@ import org.w3c.dom.Element;
 /** Cross-platform verification entrypoint; it only requires the JDK. */
 public final class Verify {
 
-	private static final Set<String> SUITES = Set.of("quick", "full", "contracts", "acceptance",
-			"concurrency", "property", "fuzz", "constrained", "chaos", "observability", "clean");
+	private static final Set<String> SUITES = Set.of("quick", "full", "static", "contracts", "container",
+			"acceptance", "concurrency", "property", "fuzz", "constrained", "chaos", "observability", "clean");
 
 	private static final Pattern SECRET = Pattern.compile(
 			"(?i)(ORDER_DB_PASSWORD|INVENTORY_DB_PASSWORD|RABBITMQ_PASSWORD|PASSWORD|TOKEN|SECRET)=([^\\s]+)");
@@ -62,6 +62,7 @@ public final class Verify {
 		this.metadataFile = reportDirectory.resolve("metadata.json");
 		this.resultFile = reportDirectory.resolve("result.json");
 		Files.createDirectories(reportDirectory);
+		makeContainerWritable(reportDirectory);
 		metadata.put("suite", suite);
 		metadata.put("runId", runId);
 		metadata.put("startedAt", Instant.now().toString());
@@ -80,6 +81,13 @@ public final class Verify {
 		metadata.put("steps", new ArrayList<>());
 		metadata.put("reports", new LinkedHashMap<>());
 		writeMetadata();
+	}
+
+	private static void makeContainerWritable(Path directory) {
+		var file = directory.toFile();
+		file.setReadable(true, false);
+		file.setWritable(true, false);
+		file.setExecutable(true, false);
 	}
 
 	public static void main(String[] arguments) throws Exception {
@@ -153,7 +161,9 @@ public final class Verify {
 		switch (suite) {
 			case "quick" -> runMaven(List.of("test"));
 			case "full" -> runMaven(List.of("clean", "verify"));
+			case "static" -> runStaticChecks();
 			case "contracts" -> runMaven(List.of("-pl", "services/shared-library", "-am", "-Dtest=*ContractTest", "test"));
+			case "container" -> runContainer();
 			case "concurrency" -> {
 				runMaven(List.of("-pl", "services/order-service,services/inventory-service", "-am",
 						"-Dtest=*Test", "-Dit.test=ServiceIT,IdempotencyIT,MessagingIT", "verify"));
@@ -178,14 +188,34 @@ public final class Verify {
 		runStep("maven", command, false);
 	}
 
+	private void runStaticChecks() throws IOException {
+		runMaven(List.of("-pl", "services/shared-library", "-am", "-Dtest=*ContractTest", "test"));
+		if (success) {
+			runStep("checkstyle-warnings", mavenCommand(List.of("checkstyle:check")), false);
+		}
+	}
+
+	private void runContainer() throws IOException {
+		if (!commandAvailable("docker")) {
+			markPending("Docker no está disponible para construir las imágenes");
+			return;
+		}
+		if (runStep("compose-config", compose("config", "--quiet"), false)) {
+			runStep("compose-build", compose("build", "order-service", "inventory-service"), false);
+		}
+		metadata.put("images", List.of(probe(compose("images"))));
+		writeMetadata();
+	}
+
 	private void runProperty() throws IOException {
 		runMaven(List.of("-Dproperty.seed=" + deterministicSeed(), "-Djqwik.seed=" + deterministicSeed(),
 				"-Dtest=*PropertiesTest", "test"));
 	}
 
 	private void runFuzz() throws IOException {
+		String inputs = System.getenv().getOrDefault("FUZZ_INPUTS", "512");
 		runMaven(List.of("-pl", "services/shared-library", "-am", "-Dfuzz.seed=" + deterministicSeed(),
-				"-Dtest=EnvelopeFuzzTest", "test"));
+				"-Dfuzz.inputs=" + inputs, "-Dtest=EnvelopeFuzzTest", "test"));
 	}
 
 	private String deterministicSeed() {
@@ -464,7 +494,7 @@ public final class Verify {
 	}
 
 	private void finish() throws IOException {
-		if (Set.of("quick", "full", "contracts", "concurrency", "property", "fuzz").contains(suite)) {
+		if (Set.of("quick", "full", "static", "contracts", "concurrency", "property", "fuzz").contains(suite)) {
 			Map<String, Integer> summary = collectMavenReports();
 			validateExpectedTests(summary);
 		}
@@ -573,7 +603,7 @@ public final class Verify {
 					&& List.of("com.roshka.order.ServiceIT", "com.roshka.inventory.ServiceIT",
 						"MessagingIT", "IdempotencyIT").stream()
 						.allMatch(test -> files.stream().anyMatch(file -> file.contains(test)));
-			case "contracts" -> List.of("platform.ContractTest", "EventContractTest").stream()
+			case "static", "contracts" -> List.of("platform.ContractTest", "EventContractTest").stream()
 					.allMatch(test -> files.stream().anyMatch(file -> file.contains(test)));
 			case "property" -> summary.get("surefireTests") > 0
 					&& List.of("MessagePropertiesTest", "OrderPropertiesTest", "StockPropertiesTest",

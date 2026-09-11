@@ -2,10 +2,10 @@
 
 Estas reglas aplican a todo el repositorio.
 
-## Fase actual: IMPLEMENTACION
+## Fase actual: VALIDACION DE RELEASE
 
-- La revisión final y el paso de fase están autorizados por el usuario. Las decisiones aceptadas están consolidadas en `docs/architecture/ARCHITECTURE.md` y `docs/architecture/EVENTS-AND-RACES.md`.
-- El desarrollo de código está autorizado; mantener los contratos, pruebas y documentación sincronizados con cada entrega.
+- El alcance funcional está implementado y las decisiones aceptadas están consolidadas en `docs/architecture/ARCHITECTURE.md` y `docs/architecture/EVENTS-AND-RACES.md`.
+- Los ajustes para el release deben mantener contratos, pruebas y documentación sincronizados.
 - Al comenzar el desarrollo, definir contratos y configurar las herramientas de verificación antes de implementar comportamiento, siguiendo TDD.
 - Registrar cambios arquitectónicos futuros en los documentos finales; no recrear registros de preguntas resueltas ni ADR vacías.
 

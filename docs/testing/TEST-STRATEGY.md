@@ -1,6 +1,6 @@
 # Estrategia de pruebas
 
-Estado: **Implementación incremental en curso**
+Estado: **Estrategia implementada; evidencia remota registrada en CI-CD**
 
 ## Objetivo
 
@@ -19,14 +19,14 @@ Las pruebas deben demostrar las propiedades difíciles del sistema: no vender st
 | Aceptación | Bruno CLI contra Docker Compose | Endpoints mínimos y flujos completos. |
 | Concurrencia | JUnit determinista + PostgreSQL real + k6 | Carreras reproducibles y carga multicliente/multiinstancia. |
 | Resiliencia | Testcontainers/Toxiproxy y fallos controlados | DB/broker temporalmente inaccesible y crash entre commit/ACK. |
-| Propiedades/fuzzing | jqwik + Jazzer opcional + generador de escenarios con semilla | Cantidades, secuencias, duplicados, desorden y payloads inesperados. |
+| Propiedades/fuzzing | jqwik + generador reproducible con semilla y corpus | Cantidades, secuencias, duplicados, desorden y payloads inesperados. |
 | Presión de recursos | k6 + límites Docker + Toxiproxy; `tc/netem` opcional en Linux | Saturación de CPU/memoria y degradación/cortes de red sin perder consistencia. |
 
 No se usa H2: su locking, tipos y SQL difieren de PostgreSQL precisamente en los puntos que se evalúan.
 
 ### Estado de implementación
 
-La primera capa de la estrategia ya está activa:
+La estrategia está activa:
 
 - unit tests de dominio/aplicación y reglas ArchUnit por servicio y para `shared-library`;
 - integration tests con PostgreSQL y RabbitMQ reales mediante Testcontainers;
@@ -35,13 +35,13 @@ La primera capa de la estrategia ya está activa:
 - checks estructurales iniciales de OpenAPI/AsyncAPI, incluido el path singular de reposición;
 - aceptación Compose mediante `demo-data`, ejecutada dos veces por CI para probar replay idempotente.
 
-La validación completa contra metaschemas, Bruno, k6 multirréplica y Toxiproxy está versionada en las puertas correspondientes. Las propiedades jqwik y el fuzz smoke reproducible de envelopes ya forman parte de la verificación rápida; el fuzzing guiado por cobertura extensivo queda para el workflow manual/programado de CI.
+La validación completa contra metaschemas, Bruno, k6 multirréplica y Toxiproxy está versionada en las puertas correspondientes. Las propiedades jqwik y el fuzz smoke reproducible de envelopes forman parte de la verificación rápida; el workflow manual/programado amplía sus iteraciones y conserva la evidencia de fallos.
 
 ### Configuración de ejecución
 
 Maven Surefire ejecuta `*Test` (unit, ArchUnit y propiedades rápidas); Failsafe ejecuta `*IT` en `integration-test` y comprueba resultados en `verify`. Los módulos con suites obligatorias fallan si no se descubren pruebas. No usar `-DskipTests`, exclusiones silenciosas ni perfiles que hagan pasar CI sin integración. El reactor raíz solo agrega módulos y configuración común: no necesita pruebas vacías.
 
-JaCoCo aplica cobertura a dominio/aplicación y publica reportes; no se excluye lógica para alcanzar el umbral. Se fija la compatibilidad con Java 26 de plugins, Mockito y jqwik antes de usarlos. Jazzer queda reservado a la campaña extensiva hasta verificar una versión compatible con el runner de Java 26. ArchUnit comprueba dominio/aplicación sin Spring/JPA/AMQP, adaptadores dependientes de puertos y cero referencias Java entre servicios. Tests de rollback verifican que el decorador transaccional envuelva también inbox, idempotencia y outbox usando la misma conexión por servicio.
+JaCoCo aplica cobertura a dominio/aplicación y publica reportes; no se excluye lógica para alcanzar el umbral. Se fija la compatibilidad con Java 26 de plugins, Mockito y jqwik antes de usarlos. ArchUnit comprueba dominio/aplicación sin Spring/JPA/AMQP, adaptadores dependientes de puertos y cero referencias Java entre servicios. Tests de rollback verifican que el decorador transaccional envuelva también inbox, idempotencia y outbox usando la misma conexión por servicio.
 
 ## TDD
 
@@ -136,7 +136,8 @@ El fuzzing extensivo es opcional y se ejecuta mediante un perfil separado, de fo
 
 - **jqwik:** propiedades rápidas del dominio y de la máquina de estados. Genera cantidades límite, pedidos multítem, secuencias de crear/reservar/cancelar/actualizar y reduce el caso al ejemplo mínimo cuando falla.
 - **Generador con semilla:** produce duplicados, reordenamientos, demoras y combinaciones de estados para integración, incluidas reposiciones y reconteos. Guarda semilla, historial de operaciones, fallos inyectados y versiones/estados observados. La semilla sola no reproduce el scheduler distribuido: se reduce el historial y se convierte la intercalación fallida en una regresión con barreras controladas.
-- **Jazzer:** superficie prevista para el perfil opcional de fuzzing guiado por cobertura de CI. El smoke local actual usa un generador JDK sembrado sobre envelopes, sin infraestructura por iteración.
+- **Fuzzing reproducible:** un generador JDK sembrado muta envelopes y validadores puros contra un
+  corpus versionado, sin infraestructura por iteración.
 - **k6 aleatorio:** combina cantidades, tiempos entre requests y distribución de endpoints para carga end-to-end, siempre con semilla conocida y un verificador final determinista.
 
 Propiedades invariantes:
@@ -195,7 +196,8 @@ El smoke obligatorio en PR aplica cuotas calibradas al runner, carga acotada y a
 - Cero pruebas omitidas sin ticket/justificación.
 - Validación de OpenAPI, AsyncAPI y Docker Compose.
 - Smoke concurrente y de recursos limitados en cada pull request; estrés extendido programado o manual para evitar CI inestable.
-- Property tests y fuzz smoke rápidos en PR; fuzzing guiado por cobertura extensivo y caos de red mediante workflows programados/manuales.
+- Property tests y fuzz smoke rápidos en PR; campañas con mayor presupuesto y caos de red mediante
+  workflows programados/manuales.
 
 `jcstress` solo se añadirá si aparece lógica lock-free dentro de la JVM. No sustituye las pruebas reales contra PostgreSQL y múltiples procesos.
 
@@ -206,7 +208,9 @@ La interfaz estable desde el root está en `java scripts/Verify.java`, con wrapp
 
 - verificación rápida: `java scripts/Verify.java quick`;
 - verificación completa: `java scripts/Verify.java full`, incluidos integration tests;
+- checks estáticos: `java scripts/Verify.java static`;
 - contratos: `java scripts/Verify.java contracts`;
+- imágenes: `java scripts/Verify.java container`;
 - aceptación: `java scripts/Verify.java acceptance`;
 - concurrencia: `java scripts/Verify.java concurrency`;
 - property tests: `java scripts/Verify.java property --seed local-m5`;
@@ -215,7 +219,7 @@ La interfaz estable desde el root está en `java scripts/Verify.java`, con wrapp
 - caos de red: `java scripts/Verify.java chaos`;
 - limpieza: `java scripts/Verify.java clean`, detiene Compose sin eliminar volúmenes.
 
-Las suites sin implementación terminan con error explícito y un reporte `SUITE_NOT_IMPLEMENTED`.
-La puerta `property`/`fuzz` además falla si Maven no descubre las clases esperadas.
+Cada suite falla si no descubre las pruebas o reportes esperados. Las puertas `property` y `fuzz`
+validan específicamente sus clases para evitar resultados verdes vacíos.
 
-Los workflows de GitHub invocarán esos mismos comandos; la lógica no se duplicará en YAML.
+Los workflows de GitHub invocan esos mismos comandos; la lógica no se duplica en YAML.

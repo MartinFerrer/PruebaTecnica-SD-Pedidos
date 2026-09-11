@@ -23,7 +23,7 @@ segmentos `{productId}` y `{orderId}` no aceptan valores numéricos como `0`; en
 
 `docker compose down` detiene el entorno y conserva volúmenes. No usar opciones de eliminación de volúmenes si se desean conservar los datos.
 
-El perfil `demo-data`, el override `replicas` y los perfiles `chaos` y `observability` están disponibles. Ver [estado de verificación](../testing/IMPLEMENTATION-VERIFICATION.md).
+El perfil `demo-data`, el override `replicas` y los perfiles `chaos` y `observability` están disponibles. Ver [estrategia de pruebas](../testing/TEST-STRATEGY.md).
 
 ## Contenedores base
 
@@ -97,7 +97,7 @@ Los comandos de Compose son iguales en Windows, macOS y Linux cuando se ejecutan
 
 Los servicios escalables no fijarán `container_name` ni un mismo puerto de host por réplica. El arnés de pruebas accede a puertos descubiertos o direcciones internas de cada réplica y distribuye peticiones explícitamente, comprobando que todas atiendan trabajo; resolver un nombre DNS una sola vez no demuestra reparto. No se añade un gateway por este motivo.
 
-El runner verifica cuotas efectivas mediante inspección Docker y registra CPU throttling, memoria/OOM, reinicios y backlog. La JVM y los pools tienen presupuestos compatibles con el límite del contenedor. Toxiproxy se introduce solo en los caminos seleccionados y el test guarda la configuración de fallos. Tras retirar restricciones/fallos transitorios, el smoke comprueba replay, estado de colas y recuperación; las invariantes y la convergencia se verifican en la puerta de concurrencia de M4.
+El runner verifica cuotas efectivas mediante inspección Docker y registra CPU throttling, memoria/OOM, reinicios y backlog. La JVM y los pools tienen presupuestos compatibles con el límite del contenedor. Toxiproxy se introduce solo en los caminos seleccionados y el test guarda la configuración de fallos. Tras retirar restricciones/fallos transitorios, el smoke comprueba replay, estado de colas y recuperación; las invariantes y la convergencia se verifican en la puerta de concurrencia.
 
 ## Limitaciones declaradas
 

@@ -17,7 +17,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ARG SERVICE
-COPY --from=build /workspace/services/${SERVICE}-service/target/${SERVICE}-service-0.1.0-SNAPSHOT.jar app.jar
+COPY --from=build /workspace/services/${SERVICE}-service/target/${SERVICE}-service-1.0.0.jar app.jar
 USER 10001:10001
 EXPOSE 8080
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65 -XX:+ExitOnOutOfMemoryError"
